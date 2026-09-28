@@ -87,8 +87,8 @@ function renderHeader() {
   const complete = state.positions.filter(p => p.readings.length >= 3).length;
   const measured = state.positions.filter(p => p.readings.length).length;
   $('runName').value = state.name;
-  $('setupSummary').textContent = `I ${fmt(state.setup.I, 3)} A  ·  d ${fmt(state.setup.d, 1)} mm  ·  R1 ${fmt(state.setup.c1.R, 2)} mm  ·  R2 ${fmt(state.setup.c2.R, 2)} mm  ·  Target ${fmt(state.setup.h1, 1)} → ${fmt(state.setup.h2, 1)} Oe  ·  ${measured} measured points`;
-  $('progressCount').textContent = `${complete} / ${state.positions.length} positions`;
+  $('setupSummary').textContent = `I ${fmt(state.setup.I, 3)} A  ·  d ${fmt(state.setup.d, 1)} mm  ·  R1 ${fmt(state.setup.c1.R, 2)} mm  ·  R2 ${fmt(state.setup.c2.R, 2)} mm  ·  Target ${fmt(state.setup.h1, 1)} → ${fmt(state.setup.h2, 1)} Oe  ·  측정 위치 ${measured}곳`;
+  $('progressCount').textContent = `${complete} / ${state.positions.length} 측정 완료`;
   $('progressBar').style.width = `${100 * complete / Math.max(1, state.positions.length)}%`;
   $('setupChanged').hidden = !state.ui.setupChanged;
   $('genEnd').value = state.setup.d;
@@ -98,17 +98,19 @@ function renderTheory() {
   $('theoryMax').textContent = fmt(E.maxDev, 3);
   $('theoryMetrics').textContent = `Max ${fmt(E.maxDev)} · RMS ${fmt(E.rmsDev)} · Nonlin ${fmt(E.nonlin)} Oe`;
   $('theoryMore').innerHTML = [
-    ['Model slope', `${fmt(E.fit.a / 100)} Oe/cm`], ['Start field', `${fmt(E.hAt0)} Oe`],
-    ['End field', `${fmt(E.hAtD)} Oe`], ['Coil 1 alone', `${fmt(E.h1solo)} Oe`]
-  ].map(([label, value]) => `<div><span>${label}</span><strong>${value}</strong></div>`).join('');
+    ['Model slope', `${fmt(E.fit.a / 100)} Oe/cm`, '이론 자기장의 감소 기울기'],
+    ['Start field', `${fmt(E.hAt0)} Oe`, '코일 1 중심의 이론값'],
+    ['End field', `${fmt(E.hAtD)} Oe`, '코일 2 중심의 이론값'],
+    ['Coil 1 alone', `${fmt(E.h1solo)} Oe`, '코일 1의 단독 기여']
+  ].map(([label, value, description]) => `<div><span>${label}</span><strong>${value}</strong><small>${description}</small></div>`).join('');
 }
 function renderDecision() {
   const { metrics } = derived;
-  $('decisionStatus').textContent = metrics ? `${derived.rows.length} measured ${derived.rows.length === 1 ? 'position' : 'positions'}` : 'No measurements yet';
+  $('decisionStatus').textContent = metrics ? `${derived.rows.length}개 위치 측정` : '아직 측정값 없음';
   const items = [
-    ['MAX DEVIATION', metrics?.target.maxAbs, 'largest |Measured − Target|'],
-    ['TARGET RMSE', metrics?.target.rmse, 'overall target agreement'],
-    ['MODEL RMSE', metrics?.model.rmse, 'measurement vs Model 2']
+    ['MAX DEVIATION', metrics?.target.maxAbs, '목표 직선에서 가장 큰 편차'],
+    ['TARGET RMSE', metrics?.target.rmse, '목표값과의 전체 평균 오차'],
+    ['MODEL RMSE', metrics?.model.rmse, '이론 모델과 실측의 평균 오차']
   ];
   $('decisionMetrics').innerHTML = items.map(([label, value, hint]) =>
     `<div class="decision-metric"><span>${label}</span><strong>${fmt(value, 3)} <small>Oe</small></strong><small>${hint}</small></div>`
@@ -119,24 +121,22 @@ function renderDecision() {
   $('decisionEndpoints').innerHTML = endpoints.map(([label, x, target]) => {
     const point = state.positions.find(p => Math.abs(p.x - x) < .00005);
     const mean = point?.readings.length ? measurementStats(point.readings).mean : null;
-    return `<div class="endpoint"><span>${label.toUpperCase()} · ${fmt(x, 1)} mm</span><strong>${fmt(mean)} <small>Oe</small></strong><small>Target ${fmt(target, 2)} · Δ ${signed(mean == null ? null : mean - target)} Oe</small></div>`;
+    return `<div class="endpoint"><span>${label.toUpperCase()} · ${label === 'Start' ? '코일 1 중심' : '코일 2 중심'}</span><strong>${fmt(mean)} <small>Oe</small></strong><small>목표 ${fmt(target, 2)} · 편차 ${signed(mean == null ? null : mean - target)} Oe</small></div>`;
   }).join('');
 }
 function renderKpis() {
-  const { fit, metrics, S, rows } = derived;
+  const { fit, metrics, rows } = derived;
   const displayFit = rows.length >= 3 ? fit : null;
-  const targetSlope = (S.h2 - S.h1) / S.d / 100;
-  const slopeDifference = displayFit ? (displayFit.a / 100 / targetSlope - 1) * 100 : null;
   const list = [
-    ['Measured slope', displayFit ? signed(displayFit.a / 100, 3) : '—', 'Oe/cm', slopeDifference == null ? 'Need 3 measured positions' : `${signed(slopeDifference, 1)}% from target`],
-    ['Weighted R²', displayFit ? fmt(displayFit.r2, 4) : '—', '', displayFit ? 'measurement linearity' : 'Need 3 measured positions'],
-    ['Mean STDEV', metrics ? fmt(metrics.meanSd) : '—', 'Oe', 'Repeatability'],
-    ['Max STDEV', metrics ? fmt(metrics.maxSd) : '—', 'Oe', 'Largest observed scatter']
+    ['Measured slope', displayFit ? signed(displayFit.a / 100, 3) : '—', 'Oe/cm', displayFit ? '실측 자기장의 감소 기울기' : '실측 기울기 · 3곳 이상 필요'],
+    ['Weighted R²', displayFit ? fmt(displayFit.r2, 4) : '—', '', displayFit ? '실측값의 직선 적합도' : '직선 적합도 · 3곳 이상 필요'],
+    ['Mean STDEV', metrics ? fmt(metrics.meanSd) : '—', 'Oe', '반복 측정의 평균 산포'],
+    ['Max STDEV', metrics ? fmt(metrics.maxSd) : '—', 'Oe', '반복 측정 중 가장 큰 산포']
   ];
   $('experimentalKpis').innerHTML = list.map(([k, v, unit, sub]) => `<div class="kpi"><span>${k}</span><strong>${v} <small>${unit}</small></strong><small>${sub}</small></div>`).join('');
 }
 function renderPositions() {
-  $('positionRail').innerHTML = state.positions.map(p => `<button type="button" data-x="${p.x}" class="${p.x === state.selectedX ? 'selected' : p.readings.length >= 3 ? 'complete' : p.readings.length ? 'partial' : ''}" aria-pressed="${p.x === state.selectedX}" title="${p.readings.length} readings at ${fmt(p.x, 2)} mm"><i aria-hidden="true"></i>${fmt(p.x, 1)}</button>`).join('') + '<button type="button" data-action="manage" class="rail-add" aria-label="Manage measurement positions" title="Manage positions">+</button>';
+  $('positionRail').innerHTML = state.positions.map(p => `<button type="button" data-x="${p.x}" class="${p.x === state.selectedX ? 'selected' : p.readings.length >= 3 ? 'complete' : p.readings.length ? 'partial' : ''}" aria-pressed="${p.x === state.selectedX}" title="${fmt(p.x, 2)} mm · 반복 측정 ${p.readings.length}회"><i aria-hidden="true"></i>${fmt(p.x, 1)}</button>`).join('') + '<button type="button" data-action="manage" class="rail-add" aria-label="측정 위치 관리" title="측정 위치 관리">+</button>';
 }
 function renderCurrent(rebuildReadings) {
   const p = selected(), { E, target } = derived;
@@ -144,21 +144,21 @@ function renderCurrent(rebuildReadings) {
   $('currentX').textContent = `${fmt(p.x, 2)} mm`;
   const st = measurementStats(p.readings);
   $('currentComparison').innerHTML = [
-    ['Target', target(p.x)], ['Model 2', E.total(p.x / 1000)],
-    ['Δ Target', st.mean == null ? null : st.mean - target(p.x)],
-    ['Δ Model', st.mean == null ? null : st.mean - E.total(p.x / 1000)]
-  ].map(([k, v]) => `<span>${k} <strong>${k.startsWith('Δ') ? signed(v) : fmt(v)}</strong> Oe</span>`).join('');
+    ['목표값', target(p.x), false], ['이론값', E.total(p.x / 1000), false],
+    ['목표 오차', st.mean == null ? null : st.mean - target(p.x), true],
+    ['모델 오차', st.mean == null ? null : st.mean - E.total(p.x / 1000), true]
+  ].map(([label, value, isDelta]) => `<span>${label} <strong>${isDelta ? signed(value) : fmt(value)}</strong> Oe</span>`).join('');
   if (rebuildReadings || !$('readingInputs').children.length || Number($('readingInputs').dataset.x) !== p.x) {
     $('readingInputs').dataset.x = p.x;
-    $('readingInputs').innerHTML = Array.from({ length: Math.max(3, p.readings.length) }, (_, i) => `<label>Reading ${i + 1}<input type="number" step="any" inputmode="decimal" data-index="${i}" value="${p.readings[i] ?? ''}" aria-label="Reading ${i + 1} at x ${p.x} mm"></label>`).join('');
+    $('readingInputs').innerHTML = Array.from({ length: Math.max(3, p.readings.length) }, (_, i) => `<label>반복 측정 ${i + 1}<input type="number" step="any" inputmode="decimal" data-index="${i}" value="${p.readings[i] ?? ''}" aria-label="${p.x} mm에서 반복 측정 ${i + 1}"></label>`).join('');
   }
-  $('currentStats').innerHTML = `<div><span>MEAN</span><strong>${fmt(st.mean)} <small>Oe</small></strong></div><div><span>SD</span><strong>${fmt(st.sd)} <small>Oe</small></strong></div>`;
+  $('currentStats').innerHTML = `<div><span>평균</span><strong>${fmt(st.mean)} <small>Oe</small></strong></div><div><span>표준편차</span><strong>${fmt(st.sd)} <small>Oe</small></strong></div>`;
 }
 function tooltip(x, event) {
   const p = derived.rows.find(q => q.x === x); if (!p) return;
   const model = derived.E.total(x / 1000), target = derived.target(x);
   const fit = derived.rows.length >= 3 && derived.fit ? derived.fit.a * x / 1000 + derived.fit.b : null;
-  const pairs = [['Target', fmt(target)], ['Model 2', fmt(model)], ...(state.ui.showModel1 ? [['Model 1', fmt(derived.E.thin(x / 1000))]] : []), ['Measured', fmt(p.mean)], ['STDEV', fmt(p.sd)], ['Fit', fmt(fit)], ['Δ Target', signed(p.mean - target)], ['Δ Model', signed(p.mean - model)], ['Raw', p.readings.join(', ')]];
+  const pairs = [['목표값', `${fmt(target)} Oe`], ['Model 2 이론값', `${fmt(model)} Oe`], ...(state.ui.showModel1 ? [['Model 1 이론값', `${fmt(derived.E.thin(x / 1000))} Oe`]] : []), ['실측 평균', `${fmt(p.mean)} Oe`], ['표준편차', `${fmt(p.sd)} Oe`], ['가중 직선 Fit', fit == null ? '—' : `${fmt(fit)} Oe`], ['목표 오차', `${signed(p.mean - target)} Oe`], ['모델 오차', `${signed(p.mean - model)} Oe`], ['원자료', p.readings.join(', ')]];
   const tip = $('chartTooltip'); tip.innerHTML = `<strong>x = ${fmt(x, 2)} mm</strong><dl>${pairs.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`;
   const host = $('mainChart').parentElement.getBoundingClientRect();
   tip.style.left = `${Math.min(event.clientX - host.left + 15, host.width - 195)}px`;
@@ -198,9 +198,9 @@ function renderCharts() {
 function renderSlope() {
   const { S, E, fit, rows } = derived;
   const displayFit = rows.length >= 3 ? fit : null;
-  const slopes = [{ label: 'TARGET', value: (S.h2 - S.h1) / S.d / 100, color: '#858b8a' },
-    { label: 'MODEL 2', value: E.fit.a / 100, color: '#2878a5' },
-    { label: 'MEASURED', value: displayFit?.a / 100, color: '#bb683d' }];
+  const slopes = [{ label: 'TARGET', value: (S.h2 - S.h1) / S.d / 100, color: '#374151' },
+    { label: 'MODEL 2', value: E.fit.a / 100, color: '#0067e6' },
+    { label: 'MEASURED', value: displayFit?.a / 100, color: '#f04a24' }];
   const finite = slopes.map(s => s.value).filter(Number.isFinite), lo = Math.min(...finite), hi = Math.max(...finite), span = Math.max(.1, hi - lo);
   $('slopeVisual').innerHTML = slopes.map(s => `<div class="slope-row"><span>${s.label}</span><div class="slope-track">${Number.isFinite(s.value) ? `<i style="--dot:${s.color};left:${15 + 70 * (s.value - lo) / span}%"></i>` : ''}</div><strong>${fmt(s.value)} Oe/cm</strong></div>`).join('');
   const pct = displayFit ? (displayFit.a / ((S.h2 - S.h1) / S.d) - 1) * 100 : null;
@@ -381,7 +381,7 @@ $('readingInputs').addEventListener('keydown', e => {
 $('addReading').onclick = () => {
   const p = selected(), inputs = $('readingInputs');
   const index = inputs.querySelectorAll('input').length;
-  inputs.insertAdjacentHTML('beforeend', `<label>Reading ${index + 1}<input type="number" step="any" inputmode="decimal" data-index="${index}" aria-label="Reading ${index + 1} at x ${p.x} mm"></label>`);
+  inputs.insertAdjacentHTML('beforeend', `<label>반복 측정 ${index + 1}<input type="number" step="any" inputmode="decimal" data-index="${index}" aria-label="${p.x} mm에서 반복 측정 ${index + 1}"></label>`);
   inputs.lastElementChild.querySelector('input').focus();
 };
 $('saveNext').onclick = () => {

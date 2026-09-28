@@ -1,5 +1,5 @@
 const NS = 'http://www.w3.org/2000/svg';
-const C = { target: '#858b8a', model: '#2878a5', measurement: '#bb683d', fit: '#796b96', model1: '#2f8981', lm: '#538266' };
+const C = { target: '#374151', model: '#0067e6', measurement: '#f04a24', fit: '#7c3aed', model1: '#009688', lm: '#16a34a' };
 const f = n => Number(n).toFixed(2);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
@@ -22,9 +22,9 @@ function base(svg, { width = 1000, height = 300, xMax, yMin, yMax, yTicks = 5 })
 }
 
 function path(points, X, Y) { return points.map((p, i) => `${i ? 'L' : 'M'}${X(p.x)},${Y(p.y)}`).join(' '); }
-function addPath(svg, points, X, Y, color, width = 2, dash = '') {
+function addPath(svg, points, X, Y, color, width = 2, dash = '', opacity = 1) {
   if (points.length < 2) return;
-  svg.insertAdjacentHTML('beforeend', `<path d="${path(points, X, Y)}" fill="none" stroke="${color}" stroke-width="${width}" ${dash ? `stroke-dasharray="${dash}"` : ''} vector-effect="non-scaling-stroke"/>`);
+  svg.insertAdjacentHTML('beforeend', `<path d="${path(points, X, Y)}" fill="none" stroke="${color}" stroke-width="${width}" stroke-opacity="${opacity}" ${dash ? `stroke-dasharray="${dash}"` : ''} vector-effect="non-scaling-stroke"/>`);
 }
 function extent(values, padding = .09) {
   let min = Math.min(...values), max = Math.max(...values);
@@ -34,11 +34,11 @@ function extent(values, padding = .09) {
 }
 function circles(svg, rows, X, Y, selectedX, onSelect, onHover, onLeave, radius = 5) {
   for (const row of rows) {
-    if (row.x === selectedX) svg.insertAdjacentHTML('beforeend', `<circle cx="${X(row.x)}" cy="${Y(row.y)}" r="${radius + 5}" fill="none" stroke="${C.measurement}" stroke-width="1.5" opacity=".65" vector-effect="non-scaling-stroke"/>`);
+    if (row.x === selectedX) svg.insertAdjacentHTML('beforeend', `<circle cx="${X(row.x)}" cy="${Y(row.y)}" r="${radius + 5}" fill="none" stroke="${C.measurement}" stroke-width="1.5" opacity=".5" vector-effect="non-scaling-stroke"/>`);
     const circle = document.createElementNS(NS, 'circle');
     circle.setAttribute('cx', X(row.x)); circle.setAttribute('cy', Y(row.y));
-    circle.setAttribute('r', row.x === selectedX ? radius + 1 : radius);
-    circle.setAttribute('fill', C.measurement); circle.setAttribute('stroke', '#fff'); circle.setAttribute('stroke-width', '2');
+    circle.setAttribute('r', row.x === selectedX ? radius + 1.8 : radius);
+    circle.setAttribute('fill', C.measurement); circle.setAttribute('stroke', '#fff'); circle.setAttribute('stroke-width', '1.5');
     circle.setAttribute('class', 'point-hit'); circle.setAttribute('tabindex', '0');
     circle.setAttribute('role', 'button'); circle.setAttribute('aria-label', `Select x ${row.x} millimeters`);
     circle.addEventListener('click', () => onSelect(row.x));
@@ -58,10 +58,10 @@ export function drawMain(svg, { S, E, rows, fit, lm, selectedX, showFit, showMod
   const [yMin, yMax] = extent(values);
   const { X, Y } = base(svg, { width: Math.max(320, svg.clientWidth), height: Math.max(240, svg.clientHeight), xMax: S.d * 1000, yMin, yMax });
   const xys = vals => E.wx.map((x, i) => ({ x: x * 1000, y: vals[i] }));
-  addPath(svg, xys(E.wt), X, Y, C.target, 1.5, '6 5');
+  addPath(svg, xys(E.wt), X, Y, C.target, 2, '7 5');
   if (showModel1) addPath(svg, xys(E.wthin), X, Y, C.model1, 1.6, '5 5');
-  addPath(svg, xys(E.wm), X, Y, C.model, 2.6);
-  if (fit && showFit) addPath(svg, fitRange.map(x => ({ x: x * 1000, y: fit.a * x + fit.b })), X, Y, C.fit, 1.8, '7 4');
+  addPath(svg, xys(E.wm), X, Y, C.model, 2.9);
+  if (fit && showFit) addPath(svg, fitRange.map(x => ({ x: x * 1000, y: fit.a * x + fit.b })), X, Y, C.fit, 1.7, '7 5', .74);
   if (lm && showLm) addPath(svg, Array.from({ length: 121 }, (_, i) => ({ x: i * S.d * 1000 / 120, y: lm.fn(i * S.d * 1000 / 120) })), X, Y, C.lm, 2.4, '10 4');
   for (const row of rows) {
     const x = X(row.x), a = Y(row.mean - row.sd), b = Y(row.mean + row.sd);
@@ -97,7 +97,7 @@ export function drawLmOverlay(svg, { S, E, rows, lm }) {
   addPath(svg, Array.from({ length: 121 }, (_, i) => ({ x: i * S.d * 1000 / 120, y: lm.fn(i * S.d * 1000 / 120) })), X, Y, C.lm, 2.4);
   for (const p of rows) {
     const x = X(p.x), upper = Y(p.mean + p.sd), lower = Y(p.mean - p.sd);
-    svg.insertAdjacentHTML('beforeend', `<path d="M${x},${upper}V${lower} M${x - 4},${upper}H${x + 4} M${x - 4},${lower}H${x + 4}" stroke="${C.measurement}" stroke-width="1.4" fill="none" vector-effect="non-scaling-stroke"/><circle cx="${x}" cy="${Y(p.mean)}" r="3.5" fill="${C.measurement}"/>`);
+    svg.insertAdjacentHTML('beforeend', `<path d="M${x},${upper}V${lower} M${x - 4},${upper}H${x + 4} M${x - 4},${lower}H${x + 4}" stroke="${C.measurement}" stroke-width="1.6" fill="none" vector-effect="non-scaling-stroke"/><circle cx="${x}" cy="${Y(p.mean)}" r="4" fill="${C.measurement}" stroke="#fff" stroke-width="1.5"/>`);
   }
 }
 
@@ -117,7 +117,7 @@ export async function exportSvgPng(svg, filename) {
   clone.setAttribute('xmlns', NS);
   clone.setAttribute('width', '1400'); clone.setAttribute('height', '500');
   const style = document.createElementNS(NS, 'style');
-  style.textContent = 'text{font-family:Arial,sans-serif;fill:#71817e;font-size:10px}.axis-line{stroke:#bfcac5;stroke-width:1}.grid-line{stroke:#edf0f0;stroke-width:1}.zero-line{stroke:#a0aaa7;stroke-width:1.2;stroke-dasharray:4 3}';
+  style.textContent = 'text{font-family:IBM Plex Mono,JetBrains Mono,Consolas,monospace;fill:#74817d;font-size:11px}.axis-line{stroke:#bfcac5;stroke-width:1}.grid-line{stroke:#e5e7eb;stroke-width:1}.zero-line{stroke:#a0aaa7;stroke-width:1.2;stroke-dasharray:4 3}';
   clone.prepend(style);
   const svgText = new XMLSerializer().serializeToString(clone);
   const image = new Image(), url = URL.createObjectURL(new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' }));
