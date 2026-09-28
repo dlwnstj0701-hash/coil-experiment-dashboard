@@ -15,7 +15,7 @@ const DEFAULT_POSITIONS = [0, 4.5, 10, 17.5, 23, 31.2, 41, 53.6];
 const fresh = () => ({ version: 1, name: 'New experiment', setup: structuredClone(DEFAULT_SETUP),
   positions: DEFAULT_POSITIONS.map(x => ({ x, readings: [] })), selectedX: 0,
   linearFitSettings: { weighted: true }, lmSettings: { keys: ['k', 'R1'], weighted: true, maxIterations: 80, active: false },
-  ui: { showModel1: false, showLm: true, setupChanged: false, residualMode: 'target' } });
+  ui: { showFit: false, showModel1: false, showLm: false, setupChanged: false, residualMode: 'target' } });
 let state = loadAutosave() || fresh();
 let derived = null, currentRunKey = null, skipNextAutosave = false;
 
@@ -104,15 +104,13 @@ function renderTheory() {
 }
 function renderDecision() {
   const { metrics } = derived;
-  const values = metrics ? [metrics.target.maxAbs, metrics.target.rmse, metrics.model.rmse] : [0, 0, 0];
-  const scale = Math.max(1, ...values);
   const items = [
-    ['Max |Measured − Target|', values[0], '#e568a5', 'Largest measured target error'],
-    ['Target RMSE', values[1], '#55b77c', 'Across measured positions'],
-    ['Model RMSE', values[2], '#e8ae2f', 'Measured vs theoretical Model 2']
+    ['Max target error', metrics?.target.maxAbs, 'Measured − Target'],
+    ['Target RMSE', metrics?.target.rmse, 'Across measured positions'],
+    ['Model 2 RMSE', metrics?.model.rmse, 'Measured − Model 2']
   ];
-  $('decisionMetrics').innerHTML = items.map(([label, value, color, hint]) =>
-    `<div class="decision-metric"><div class="line"><span>${label}</span><strong>${metrics ? fmt(value, 3) : '—'} <small>Oe</small></strong></div><div class="decision-track"><i style="width:${metrics ? Math.max(2, value / scale * 100) : 0}%;background:${color}"></i></div><small>${hint}</small></div>`
+  $('decisionMetrics').innerHTML = items.map(([label, value, hint]) =>
+    `<div class="decision-metric" title="${hint}"><span>${label}</span><strong>${fmt(value, 3)} <small>Oe</small></strong></div>`
   ).join('');
   const endpoints = [
     ['Start', 0, state.setup.h1], ['End', state.setup.d, state.setup.h2]
@@ -139,18 +137,18 @@ function renderPositions() {
   $('positionRail').innerHTML = state.positions.map(p => `<button type="button" data-x="${p.x}" class="${p.x === state.selectedX ? 'selected' : p.readings.length >= 3 ? 'complete' : ''}" aria-pressed="${p.x === state.selectedX}">${fmt(p.x, 1)}<span>${p.readings.length >= 3 ? 'complete' : p.x === state.selectedX ? 'current' : p.readings.length ? `${p.readings.length} readings` : 'pending'}</span></button>`).join('');
 }
 function renderCurrent(rebuildReadings) {
-  const p = selected(), { E, target, fit } = derived;
+  const p = selected(), { E, target } = derived;
   if (!p) return;
   $('currentX').textContent = `${fmt(p.x, 2)} mm`;
   $('currentComparison').innerHTML = [
-    ['Target', target(p.x)], ['Model 2', E.total(p.x / 1000)], ['Model 1', E.thin(p.x / 1000)]
+    ['Target', target(p.x)], ['Model 2', E.total(p.x / 1000)]
   ].map(([k, v]) => `<div class="comparison"><span>${k}</span><strong>${fmt(v)} <small>Oe</small></strong></div>`).join('');
   if (rebuildReadings || !$('readingInputs').children.length || Number($('readingInputs').dataset.x) !== p.x) {
     $('readingInputs').dataset.x = p.x;
     $('readingInputs').innerHTML = Array.from({ length: Math.max(3, p.readings.length) }, (_, i) => `<label>Reading ${i + 1}<input type="number" step="any" inputmode="decimal" data-index="${i}" value="${p.readings[i] ?? ''}" aria-label="Reading ${i + 1} at x ${p.x} mm"></label>`).join('');
   }
   const st = measurementStats(p.readings);
-  $('currentStats').innerHTML = `<span>n <strong>${st.n}</strong></span><span>Mean <strong>${fmt(st.mean)}</strong> Oe</span><span>Sample STDEV <strong>${fmt(st.sd)}</strong> Oe</span><span>Δ target <strong>${signed(st.mean == null ? null : st.mean - target(p.x))}</strong> Oe</span><span>Δ model <strong>${signed(st.mean == null ? null : st.mean - E.total(p.x / 1000))}</strong> Oe</span>${fit && st.n ? `<span>Δ fit <strong>${signed(st.mean - (fit.a * p.x / 1000 + fit.b))}</strong> Oe</span>` : ''}`;
+  $('currentStats').innerHTML = `<span>Mean <strong>${fmt(st.mean)}</strong> Oe</span><span>STDEV <strong>${fmt(st.sd)}</strong> Oe</span><span>Δ target <strong>${signed(st.mean == null ? null : st.mean - target(p.x))}</strong> Oe</span>`;
 }
 function tooltip(x, event) {
   const p = derived.rows.find(q => q.x === x); if (!p) return;
@@ -164,7 +162,10 @@ function tooltip(x, event) {
 function renderCharts() {
   const { S, E, rows, fit, lm, metrics } = derived;
   $('chartTooltip').hidden = true;
-  drawMain($('mainChart'), { S, E, rows, fit, lm, selectedX: state.selectedX, showModel1: state.ui.showModel1, showLm: state.ui.showLm, onSelect: setSelection, onHover: tooltip, onLeave: () => $('chartTooltip').hidden = true });
+  drawMain($('mainChart'), { S, E, rows, fit, lm, selectedX: state.selectedX, showFit: state.ui.showFit, showModel1: state.ui.showModel1, showLm: state.ui.showLm, onSelect: setSelection, onHover: tooltip, onLeave: () => $('chartTooltip').hidden = true });
+  $('fitLegend').hidden = !state.ui.showFit || !fit;
+  $('model1Legend').hidden = !state.ui.showModel1;
+  $('lmLegend').hidden = !state.ui.showLm || !lm;
   const common = { xMax: state.setup.d, selectedX: state.selectedX, onSelect: setSelection };
   drawResidual($('targetResidualChart'), { ...common, rows: metrics?.targetResidual || [], summary: metrics?.target });
   drawResidual($('modelResidualChart'), { ...common, rows: metrics?.modelResidual || [], summary: metrics?.model });
@@ -183,16 +184,16 @@ function renderCharts() {
     residualValues.some(v => v > 0) && residualValues.some(v => v < 0) ? 'Residual changes sign' :
     active.bias > 0 ? 'Measured field stays above comparison' : 'Measured field stays below comparison';
   const badge = $('trackingBadge');
-  badge.textContent = !metrics ? 'Awaiting measurements' : metrics.target.maxAbs <= 1 ? 'Target tracking · within ±1 Oe' : 'Target tracking · review deviation';
+  badge.textContent = !metrics ? 'Awaiting measurements' : metrics.target.maxAbs <= 1 ? 'All measured points within ±1 Oe' : 'A measured point exceeds ±1 Oe';
   badge.className = `tracking-badge ${!metrics ? '' : metrics.target.maxAbs <= 1 ? 'good' : 'attention'}`;
   $('targetResidualSummary').textContent = metrics ? `RMSE ${fmt(metrics.target.rmse)} · bias ${signed(metrics.target.bias)} Oe` : 'Awaiting measurements';
   $('modelResidualSummary').textContent = metrics ? `RMSE ${fmt(metrics.model.rmse)} · bias ${signed(metrics.model.bias)} Oe` : 'Awaiting measurements';
 }
 function renderSlope() {
   const { S, E, fit } = derived;
-  const slopes = [{ label: 'TARGET', value: (S.h2 - S.h1) / S.d / 100, color: '#7d868b' },
-    { label: 'MODEL 2', value: E.fit.a / 100, color: '#2879ab' },
-    { label: 'MEASURED', value: fit?.a / 100, color: '#d66531' }];
+  const slopes = [{ label: 'TARGET', value: (S.h2 - S.h1) / S.d / 100, color: '#239b9a' },
+    { label: 'MODEL 2', value: E.fit.a / 100, color: '#dfa526' },
+    { label: 'MEASURED', value: fit?.a / 100, color: '#dc629a' }];
   const finite = slopes.map(s => s.value).filter(Number.isFinite), lo = Math.min(...finite), hi = Math.max(...finite), span = Math.max(.1, hi - lo);
   $('slopeVisual').innerHTML = slopes.map(s => `<div class="slope-row"><span>${s.label}</span><div class="slope-track">${Number.isFinite(s.value) ? `<i style="--dot:${s.color};left:${15 + 70 * (s.value - lo) / span}%"></i>` : ''}</div><strong>${fmt(s.value)} Oe/cm</strong></div>`).join('');
   const pct = fit ? (fit.a / ((S.h2 - S.h1) / S.d) - 1) * 100 : null;
@@ -379,6 +380,7 @@ $('saveNext').onclick = () => {
 $('measurementTable').addEventListener('click', e => { if (e.target.closest('details')) return; const tr = e.target.closest('tr[data-x]'); if (tr) setSelection(Number(tr.dataset.x), true); });
 $('showModel1').onchange = e => { state.ui.showModel1 = e.target.checked; changed(); };
 $('showLm').onchange = e => { state.ui.showLm = e.target.checked; changed(); };
+$('showFit').onchange = e => { state.ui.showFit = e.target.checked; changed(); };
 $('residualTarget').onclick = () => { state.ui.residualMode = 'target'; changed(); };
 $('residualModel').onclick = () => { state.ui.residualMode = 'model'; changed(); };
 $('fitParameters').innerHTML = FITSPEC.map(f => `<label><input type="checkbox" data-key="${f.key}" ${state.lmSettings.keys.includes(f.key) ? 'checked' : ''}>${f.label}</label>`).join('');
@@ -386,7 +388,7 @@ function syncSettingsControls() {
   for (const input of $('fitParameters').querySelectorAll('input')) input.checked = state.lmSettings.keys.includes(input.dataset.key);
   $('fitWeight').value = state.lmSettings.weighted ? '1' : '0';
   $('fitIterations').value = state.lmSettings.maxIterations;
-  $('showModel1').checked = state.ui.showModel1; $('showLm').checked = state.ui.showLm;
+  $('showFit').checked = state.ui.showFit; $('showModel1').checked = state.ui.showModel1; $('showLm').checked = state.ui.showLm;
 }
 $('fitParameters').onchange = () => { state.lmSettings.keys = [...$('fitParameters').querySelectorAll('input:checked')].map(i => i.dataset.key); changed(); };
 $('fitWeight').value = state.lmSettings.weighted ? '1' : '0';
@@ -419,7 +421,8 @@ $('rawInput').addEventListener('drop', e => { if (e.dataTransfer.files.length) {
 
 $('showModel1').checked = state.ui.showModel1;
 $('showLm').checked = state.ui.showLm;
-document.querySelector('.residual-grid').append(document.querySelector('.measurement-panel'));
+$('showFit').checked = state.ui.showFit;
+$('analysisSection').addEventListener('toggle', () => { if ($('analysisSection').open) { renderCharts(); if (derived.lm) renderLm(); } });
 let resizeTimer;
 window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { renderCharts(); if (derived.lm) renderLm(); }, 100); });
 renderAll({ rebuildReadings: true });

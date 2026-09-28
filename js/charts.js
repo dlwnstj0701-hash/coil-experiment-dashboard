@@ -49,9 +49,9 @@ function circles(svg, rows, X, Y, selectedX, onSelect, onHover, onLeave, radius 
   }
 }
 
-export function drawMain(svg, { S, E, rows, fit, lm, selectedX, showModel1, showLm, onSelect, onHover, onLeave }) {
+export function drawMain(svg, { S, E, rows, fit, lm, selectedX, showFit, showModel1, showLm, onSelect, onHover, onLeave }) {
   const values = [...E.wm, ...E.wt, ...rows.flatMap(p => [p.mean - p.sd, p.mean + p.sd])];
-  if (fit) values.push(fit.b, fit.a * S.d + fit.b);
+  if (fit && showFit) values.push(fit.b, fit.a * S.d + fit.b);
   if (lm && showLm) for (let i = 0; i <= 100; i++) values.push(lm.fn(i * S.d * 1000 / 100));
   const [yMin, yMax] = extent(values);
   const { X, Y } = base(svg, { width: Math.max(320, svg.clientWidth), height: Math.max(240, svg.clientHeight), xMax: S.d * 1000, yMin, yMax });
@@ -59,7 +59,7 @@ export function drawMain(svg, { S, E, rows, fit, lm, selectedX, showModel1, show
   addPath(svg, xys(E.wt), X, Y, C.target, 2, '7 5');
   if (showModel1) addPath(svg, xys(E.wthin), X, Y, C.model1, 1.6, '5 5');
   addPath(svg, xys(E.wm), X, Y, C.model, 3);
-  if (fit) addPath(svg, [{ x: 0, y: fit.b }, { x: S.d * 1000, y: fit.a * S.d + fit.b }], X, Y, C.fit, 2.5);
+  if (fit && showFit) addPath(svg, [{ x: 0, y: fit.b }, { x: S.d * 1000, y: fit.a * S.d + fit.b }], X, Y, C.fit, 2.5);
   if (lm && showLm) addPath(svg, Array.from({ length: 121 }, (_, i) => ({ x: i * S.d * 1000 / 120, y: lm.fn(i * S.d * 1000 / 120) })), X, Y, C.lm, 2.4, '10 4');
   for (const row of rows) {
     const x = X(row.x), a = Y(row.mean - row.sd), b = Y(row.mean + row.sd);
@@ -78,7 +78,12 @@ export function drawResidual(svg, { xMax, rows, selectedX, color = C.measurement
   circles(svg, rows.map(p => ({ x: p.x, y: p.value })), X, Y, selectedX, onSelect, null, null, 4);
   if (summary && rows.length) {
     const extreme = rows.find(p => p.x === summary.at);
-    if (extreme) svg.insertAdjacentHTML('beforeend', `<text x="${X(extreme.x)}" y="${Math.max(11, Y(extreme.value) - 10)}" text-anchor="middle" fill="${color}">max ${f(summary.maxAbs)}</text>`);
+    if (extreme) {
+      const nearStart = extreme.x < xMax * .08, nearEnd = extreme.x > xMax * .92;
+      const labelX = X(extreme.x) + (nearStart ? 10 : nearEnd ? -10 : 0);
+      const anchor = nearStart ? 'start' : nearEnd ? 'end' : 'middle';
+      svg.insertAdjacentHTML('beforeend', `<text x="${labelX}" y="${Math.max(11, Y(extreme.value) - 10)}" text-anchor="${anchor}" fill="${color}">max ${f(summary.maxAbs)}</text>`);
+    }
   }
 }
 
