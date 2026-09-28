@@ -18,7 +18,7 @@ Import the repository into Vercel. Choose **Other** framework, leave the build c
 
 1. Open **Experiment setup** and set current, wire diameter, coil geometry, winding directions, and target endpoints. Coordinates run from coil 1 center (`x=0`) to coil 2 center (`x=d`).
 2. Add arbitrary positions, or generate a regular series. Select a position from the rail, graph, residual chart, or table. Enter readings with Enter advancing through the fields; **Save & next** advances to the next position.
-3. Review Model 2 against the target, measured means and sample STDEV, weighted linear fit, experimental KPIs, and both residual plots. Model 1 can be toggled on.
+3. Read the field profile and decision panel together: the shared-scale bars compare maximum target error, target RMSE, and Model 2 RMSE. The four KPI cells summarize measured slope, weighted R², mean STDEV, and maximum STDEV. Switch the residual fingerprint between Target error and Model error; click any measured point to select its position. Model 1 can be toggled on, and the theoretical details expand from the decision panel.
 4. After at least three positions have readings, run **Advanced LM analysis** to estimate physical parameters. Choose free parameters and weighting; the table and before/after plots report the result. Strongly correlated parameters need cautious interpretation.
 5. Runs autosave in the browser. **Save** stores named snapshots, **Load** restores them, and **Export** downloads JSON, CSV, or chart PNG. Advanced input accepts repeated-measurement text and CSV/TSV/TXT/XLSX (first worksheet).
 

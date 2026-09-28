@@ -1,5 +1,5 @@
 const NS = 'http://www.w3.org/2000/svg';
-const C = { target: '#7d868b', model: '#2879ab', measurement: '#d66531', fit: '#8052a2', model1: '#2b9388', lm: '#4c9060' };
+const C = { target: '#29a7a5', model: '#e8ae2f', measurement: '#e568a5', fit: '#8057b4', model1: '#3977b4', lm: '#4c9868' };
 const f = n => Number(n).toFixed(2);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
@@ -74,7 +74,7 @@ export function drawResidual(svg, { xMax, rows, selectedX, color = C.measurement
   const { X, Y, p, width } = base(svg, { width: Math.max(320, svg.clientWidth), height: Math.max(160, svg.clientHeight), xMax, yMin: -radius, yMax: radius, yTicks: 4 });
   svg.insertAdjacentHTML('beforeend', `<line class="zero-line" x1="${p.l}" y1="${Y(0)}" x2="${width - p.r}" y2="${Y(0)}"/>`);
   if (comparison?.length) addPath(svg, comparison, X, Y, C.lm, 2);
-  if (rows.length > 1) addPath(svg, rows, X, Y, color, 1.4);
+  for (const row of rows) svg.insertAdjacentHTML('beforeend', `<line x1="${X(row.x)}" y1="${Y(0)}" x2="${X(row.x)}" y2="${Y(row.value)}" stroke="${color}" stroke-width="2" vector-effect="non-scaling-stroke"/>`);
   circles(svg, rows.map(p => ({ x: p.x, y: p.value })), X, Y, selectedX, onSelect, null, null, 4);
   if (summary && rows.length) {
     const extreme = rows.find(p => p.x === summary.at);
@@ -107,7 +107,7 @@ export async function exportSvgPng(svg, filename) {
   clone.setAttribute('xmlns', NS);
   clone.setAttribute('width', '1400'); clone.setAttribute('height', '500');
   const style = document.createElementNS(NS, 'style');
-  style.textContent = 'text{font-family:Arial,sans-serif;fill:#71817e;font-size:10px}.axis-line{stroke:#bfcac5;stroke-width:1}.grid-line{stroke:#e6ece8;stroke-width:1}.zero-line{stroke:#a0aaa7;stroke-width:1.2;stroke-dasharray:4 3}';
+  style.textContent = 'text{font-family:Arial,sans-serif;fill:#71817e;font-size:10px}.axis-line{stroke:#bfcac5;stroke-width:1}.grid-line{stroke:#edf0f0;stroke-width:1}.zero-line{stroke:#a0aaa7;stroke-width:1.2;stroke-dasharray:4 3}';
   clone.prepend(style);
   const svgText = new XMLSerializer().serializeToString(clone);
   const image = new Image(), url = URL.createObjectURL(new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' }));
