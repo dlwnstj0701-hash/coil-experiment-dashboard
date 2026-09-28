@@ -4,6 +4,7 @@ import { parseRaw, fileToPositions } from './import.js';
 import { drawMain, drawResidual, drawLmOverlay, drawLmResidual, exportSvgPng } from './charts.js';
 
 const $ = id => document.getElementById(id);
+const themeColor = name => getComputedStyle(document.documentElement).getPropertyValue(`--${name}`).trim();
 const fmt = (v, d = 3) => v == null || !Number.isFinite(v) ? '—' : Number(v).toFixed(d);
 const signed = (v, d = 3) => v == null || !Number.isFinite(v) ? '—' : `${v >= 0 ? '+' : ''}${v.toFixed(d)}`;
 const AUTOSAVE = 'coil-experiment-dashboard:autosave:v1';
@@ -147,7 +148,7 @@ function renderCurrent(rebuildReadings) {
     ['목표값', target(p.x), false], ['이론값', E.total(p.x / 1000), false],
     ['목표 오차', st.mean == null ? null : st.mean - target(p.x), true],
     ['모델 오차', st.mean == null ? null : st.mean - E.total(p.x / 1000), true]
-  ].map(([label, value, isDelta]) => `<span>${label} <strong>${isDelta ? signed(value) : fmt(value)}</strong> Oe</span>`).join('');
+  ].map(([label, value, isDelta], index) => `<span class="${index % 2 === 0 ? 'context-target' : 'context-model'}">${label} <strong>${isDelta ? signed(value) : fmt(value)}</strong> Oe</span>`).join('');
   if (rebuildReadings || !$('readingInputs').children.length || Number($('readingInputs').dataset.x) !== p.x) {
     $('readingInputs').dataset.x = p.x;
     $('readingInputs').innerHTML = Array.from({ length: Math.max(3, p.readings.length) }, (_, i) => `<label>반복 측정 ${i + 1}<input type="number" step="any" inputmode="decimal" data-index="${i}" value="${p.readings[i] ?? ''}" aria-label="${p.x} mm에서 반복 측정 ${i + 1}"></label>`).join('');
@@ -158,8 +159,8 @@ function tooltip(x, event) {
   const p = derived.rows.find(q => q.x === x); if (!p) return;
   const model = derived.E.total(x / 1000), target = derived.target(x);
   const fit = derived.rows.length >= 3 && derived.fit ? derived.fit.a * x / 1000 + derived.fit.b : null;
-  const pairs = [['목표값', `${fmt(target)} Oe`], ['Model 2 이론값', `${fmt(model)} Oe`], ...(state.ui.showModel1 ? [['Model 1 이론값', `${fmt(derived.E.thin(x / 1000))} Oe`]] : []), ['실측 평균', `${fmt(p.mean)} Oe`], ['표준편차', `${fmt(p.sd)} Oe`], ['가중 직선 Fit', fit == null ? '—' : `${fmt(fit)} Oe`], ['목표 오차', `${signed(p.mean - target)} Oe`], ['모델 오차', `${signed(p.mean - model)} Oe`], ['원자료', p.readings.join(', ')]];
-  const tip = $('chartTooltip'); tip.innerHTML = `<strong>x = ${fmt(x, 2)} mm</strong><dl>${pairs.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`;
+  const pairs = [['목표값', `${fmt(target)} Oe`, 'target'], ['Model 2 이론값', `${fmt(model)} Oe`, 'model'], ...(state.ui.showModel1 ? [['Model 1 이론값', `${fmt(derived.E.thin(x / 1000))} Oe`]] : []), ['실측 평균', `${fmt(p.mean)} Oe`, 'measurement'], ['표준편차', `${fmt(p.sd)} Oe`], ['가중 직선 Fit', fit == null ? '—' : `${fmt(fit)} Oe`, 'fit'], ['목표 오차', `${signed(p.mean - target)} Oe`], ['모델 오차', `${signed(p.mean - model)} Oe`], ['원자료', p.readings.join(', ')]];
+  const tip = $('chartTooltip'); tip.innerHTML = `<strong>x = ${fmt(x, 2)} mm</strong><dl>${pairs.map(([k, v, series]) => `<dt${series ? ` data-series="${series}"` : ''}>${k}</dt><dd>${v}</dd>`).join('')}</dl>`;
   const host = $('mainChart').parentElement.getBoundingClientRect();
   tip.style.left = `${Math.min(event.clientX - host.left + 15, host.width - 195)}px`;
   tip.style.top = `${Math.max(8, event.clientY - host.top - 115)}px`; tip.hidden = false;
@@ -175,8 +176,8 @@ function renderCharts() {
   $('model1Legend').hidden = !state.ui.showModel1;
   $('lmLegend').hidden = !state.ui.showLm || !lm;
   const common = { xMax: state.setup.d, selectedX: state.selectedX, onSelect: setSelection };
-  drawResidual($('targetResidualChart'), { ...common, rows: metrics?.targetResidual || [], summary: metrics?.target });
-  drawResidual($('modelResidualChart'), { ...common, rows: metrics?.modelResidual || [], summary: metrics?.model });
+  drawResidual($('targetResidualChart'), { ...common, rows: metrics?.targetResidual || [], summary: metrics?.target, color: themeColor('target-text') });
+  drawResidual($('modelResidualChart'), { ...common, rows: metrics?.modelResidual || [], summary: metrics?.model, color: themeColor('model') });
   const mode = state.ui.residualMode, active = metrics?.[mode];
   $('residualTarget').setAttribute('aria-pressed', String(mode === 'target'));
   $('residualModel').setAttribute('aria-pressed', String(mode === 'model'));
@@ -198,9 +199,9 @@ function renderCharts() {
 function renderSlope() {
   const { S, E, fit, rows } = derived;
   const displayFit = rows.length >= 3 ? fit : null;
-  const slopes = [{ label: 'TARGET', value: (S.h2 - S.h1) / S.d / 100, color: '#374151' },
-    { label: 'MODEL 2', value: E.fit.a / 100, color: '#0067e6' },
-    { label: 'MEASURED', value: displayFit?.a / 100, color: '#f04a24' }];
+  const slopes = [{ label: 'TARGET', value: (S.h2 - S.h1) / S.d / 100, color: themeColor('target') },
+    { label: 'MODEL 2', value: E.fit.a / 100, color: themeColor('model') },
+    { label: 'MEASURED', value: displayFit?.a / 100, color: themeColor('measurement') }];
   const finite = slopes.map(s => s.value).filter(Number.isFinite), lo = Math.min(...finite), hi = Math.max(...finite), span = Math.max(.1, hi - lo);
   $('slopeVisual').innerHTML = slopes.map(s => `<div class="slope-row"><span>${s.label}</span><div class="slope-track">${Number.isFinite(s.value) ? `<i style="--dot:${s.color};left:${15 + 70 * (s.value - lo) / span}%"></i>` : ''}</div><strong>${fmt(s.value)} Oe/cm</strong></div>`).join('');
   const pct = displayFit ? (displayFit.a / ((S.h2 - S.h1) / S.d) - 1) * 100 : null;
