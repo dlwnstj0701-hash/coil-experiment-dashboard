@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Coil Experiment Dashboard</title>
+  <link rel="stylesheet" href="./css/dashboard.css">
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">H</span><div><strong>COIL EXPERIMENT</strong><small>FIELD WORKFLOW / PROJECT 1</small></div></div>
+      <div class="run-title"><label for="runName">RUN</label><input id="runName" value="New experiment" aria-label="Run name"><span id="saveStatus" class="save-status">Saved locally</span></div>
+      <div class="top-actions">
+        <button id="setupOpen" type="button">Experiment setup</button>
+        <button id="saveRun" type="button" title="Save run to browser">Save</button>
+        <button id="loadRun" type="button" title="Load a saved run">Load</button>
+        <button id="newRun" type="button">New run</button>
+        <button id="resetRun" type="button" title="Reset current run to defaults">Reset</button>
+        <details class="menu"><summary>Export</summary><div class="menu-content"><button id="exportJson" type="button">Run JSON</button><button id="exportCsv" type="button">Measurements CSV</button><button id="exportMain" type="button">Field profile PNG</button><button id="exportTargetResidual" type="button">Target residual PNG</button><button id="exportModelResidual" type="button">Model residual PNG</button></div></details>
+      </div>
+    </header>
+
+    <main>
+      <div class="overview">
+        <div><div class="eyebrow">LIVE EXPERIMENT</div><h1>Field profile</h1><p id="setupSummary"></p></div>
+        <div class="completion"><strong id="progressCount">0 / 0</strong><span>positions complete</span><div class="progress-track"><i id="progressBar"></i></div></div>
+      </div>
+      <div id="setupChanged" class="notice" hidden><span>Experiment setup changed. Existing measurements will be re-evaluated against the updated model.</span><button type="button" id="applyModel">Apply updated model</button><button type="button" id="freshMeasurements">Start new measurement set</button></div>
+
+      <section class="primary-grid" aria-label="Field and theoretical status">
+        <div class="chart-panel main-panel">
+          <div class="section-head"><div><span class="eyebrow">01 / FIELD</span><h2>Main field profile</h2></div><div class="chart-tools"><label><input id="showModel1" type="checkbox"> Model 1</label><label><input id="showLm" type="checkbox" checked> LM model</label></div></div>
+          <div class="chart-wrap"><svg id="mainChart" role="img" aria-label="Field profile with target, models, weighted fit and measurements"></svg><div id="chartTooltip" class="chart-tooltip" hidden></div></div>
+          <div class="legend"><span><i class="swatch target"></i>Target</span><span><i class="swatch model"></i>Model 2</span><span><i class="swatch measurement"></i>Measured ± SD</span><span><i class="swatch fit"></i>Weighted linear fit</span><span><i class="swatch model1"></i>Model 1</span><span><i class="swatch lm"></i>LM fit</span></div>
+        </div>
+        <aside class="theory-panel"><div class="section-head"><div><span class="eyebrow">MODEL 2 / LIVE</span><h2>Theoretical status</h2></div></div><div class="theory-hero"><span>Predicted max deviation</span><strong id="theoryMax">—</strong><small>Oe vs target line</small></div><div class="theory-list" id="theoryMetrics"></div></aside>
+      </section>
+
+      <section class="kpi-band" aria-label="Experimental metrics"><div class="section-head"><div><span class="eyebrow">02 / MEASUREMENT</span><h2>Experimental KPI</h2></div></div><div id="experimentalKpis" class="kpi-grid"></div></section>
+
+      <section class="residual-grid" aria-label="Residual charts">
+        <div class="chart-panel"><div class="section-head"><div><span class="eyebrow">03 / REQUIREMENT</span><h2>Measured − target</h2></div><strong id="targetResidualSummary" class="panel-summary">—</strong></div><svg id="targetResidualChart" class="residual-chart" role="img" aria-label="Measured minus target residual"></svg></div>
+        <div class="chart-panel"><div class="section-head"><div><span class="eyebrow">04 / THEORY</span><h2>Measured − Model 2</h2></div><strong id="modelResidualSummary" class="panel-summary">—</strong></div><svg id="modelResidualChart" class="residual-chart" role="img" aria-label="Measured minus Model 2 residual"></svg></div>
+      </section>
+
+      <section class="slope-band"><div class="section-head"><div><span class="eyebrow">05 / LINEARITY</span><h2>Slope comparison</h2></div><span id="slopeDelta" class="panel-summary">—</span></div><div id="slopeVisual" class="slope-visual"></div></section>
+
+      <section class="workflow-grid" aria-label="Measurement workflow">
+        <div class="position-panel"><div class="section-head"><div><span class="eyebrow">06 / POSITIONS</span><h2>Measurement positions</h2></div></div><div id="positionRail" class="position-rail"></div><div class="position-actions"><label class="input-group">Position x (mm)<input id="newPosition" type="number" step="any" min="0"></label><button id="addPosition" type="button">Add position</button></div><div class="position-actions"><label class="input-group">Start<input id="genStart" type="number" step="any" value="0"></label><label class="input-group">End<input id="genEnd" type="number" step="any" value="53.6"></label><label class="input-group">Step<input id="genStep" type="number" step="any" value="5"></label><button id="generatePositions" type="button">Generate</button></div><p id="positionNote" class="inline-note" role="status"></p></div>
+        <div class="measurement-panel"><div class="section-head"><div><span class="eyebrow">07 / GAUSSMETER INPUT</span><h2>Current position <strong id="currentX">—</strong></h2></div><div class="edit-actions"><button id="editPosition" type="button">Edit x</button><button id="deletePosition" type="button">Delete</button></div></div><div class="current-comparison" id="currentComparison"></div><div id="readingInputs" class="reading-inputs"></div><div class="reading-actions"><button id="addReading" type="button">Add reading</button><button id="saveNext" class="primary" type="button">Save &amp; next</button></div><div id="currentStats" class="current-stats"></div></div>
+      </section>
+
+      <section class="table-section"><div class="section-head"><div><span class="eyebrow">08 / RECORD</span><h2>Measurement table</h2></div><button id="copyTable" type="button">Copy table</button></div><div class="table-scroll"><table id="measurementTable"><thead><tr><th>x mm</th><th>n</th><th>Mean</th><th>STDEV</th><th>Target</th><th>Model 2</th><th>Wtd. fit</th><th>Δ target</th><th>Δ model</th><th>Δ fit</th><th>Status</th></tr></thead><tbody></tbody></table></div></section>
+
+      <details class="advanced" id="lmSection"><summary><span><span class="eyebrow">09 / PHYSICAL ESTIMATION</span><strong>Advanced LM analysis</strong></span><span id="lmSummary">Not fitted</span></summary><div class="advanced-body"><div class="lm-controls"><fieldset><legend>Parameters to fit</legend><div id="fitParameters" class="fit-parameters"></div></fieldset><label class="input-group">Weighting<select id="fitWeight"><option value="1">STDEV weighted</option><option value="0">Unweighted</option></select></label><label class="input-group">Max iterations<input id="fitIterations" type="number" min="5" step="10" value="80"></label><button id="runLm" class="primary" type="button">Run physical fit</button><button id="clearLm" type="button">Clear</button></div><p id="lmNote" class="inline-note">At least three measured positions are required.</p><div id="lmResult" hidden><div id="lmMetrics" class="lm-metrics"></div><div class="table-scroll"><table id="lmTable"><thead><tr><th>Parameter</th><th>Design</th><th>Fitted</th><th>Std error</th><th>Unit</th></tr></thead><tbody></tbody></table></div><div class="lm-charts"><div><h3>Original vs fitted model</h3><svg id="lmChart" role="img" aria-label="Original model and LM fitted curve"></svg></div><div><h3>Residual before / after</h3><svg id="lmResidualChart" role="img" aria-label="LM residual comparison"></svg></div></div></div></div></details>
+
+      <details class="advanced" id="importSection"><summary><span><span class="eyebrow">10 / DATA</span><strong>Import / advanced data input</strong></span><span>CSV · TSV · TXT · XLSX · JSON</span></summary><div class="advanced-body"><p>One line per position: x in mm, followed by readings in Oe. Matching x values are grouped.</p><textarea id="rawInput" rows="7" spellcheck="false" aria-label="Raw repeated measurements"></textarea><div class="import-actions"><button id="importRaw" class="primary" type="button">Import readings</button><button id="importFile" type="button">Load data file</button><input id="dataFile" type="file" accept=".csv,.tsv,.txt,.xlsx" hidden><button id="importJson" type="button">Import run JSON</button><input id="jsonFile" type="file" accept=".json" hidden></div><p id="importNote" class="inline-note" role="status"></p></div></details>
+    </main>
+  </div>
+
+  <dialog id="setupDialog"><form method="dialog"><div class="dialog-head"><div><span class="eyebrow">EXPERIMENT SETUP</span><h2>Current theoretical input</h2></div><button class="close" value="cancel" aria-label="Close setup" title="Close">×</button></div><div id="setupFields" class="setup-fields"></div><div class="dialog-foot"><span id="setupError" role="alert"></span><button value="cancel">Close</button></div></form></dialog>
+  <dialog id="loadDialog"><div class="dialog-head"><h2>Saved runs</h2><button class="close" id="closeLoad" type="button" aria-label="Close saved runs">×</button></div><div id="savedRuns"></div></dialog>
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>
