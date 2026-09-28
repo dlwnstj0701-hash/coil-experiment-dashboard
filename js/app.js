@@ -15,7 +15,7 @@ const DEFAULT_POSITIONS = [0, 4.5, 10, 17.5, 23, 31.2, 41, 53.6];
 const fresh = () => ({ version: 1, name: 'New experiment', setup: structuredClone(DEFAULT_SETUP),
   positions: DEFAULT_POSITIONS.map(x => ({ x, readings: [] })), selectedX: 0,
   linearFitSettings: { weighted: true }, lmSettings: { keys: ['k', 'R1'], weighted: true, maxIterations: 80, active: false },
-  ui: { showFit: false, showModel1: false, showLm: false, setupChanged: false, residualMode: 'target' } });
+  ui: { showFit: true, showModel1: false, showLm: false, setupChanged: false, residualMode: 'target' } });
 let state = loadAutosave() || fresh();
 let derived = null, currentRunKey = null, skipNextAutosave = false;
 
@@ -84,33 +84,34 @@ function renderAll({ rebuildReadings = false } = {}) {
   renderCharts(); renderSlope(); renderTable(); renderLm();
 }
 function renderHeader() {
-  const { E } = derived, complete = state.positions.filter(p => p.readings.length >= 3).length;
+  const complete = state.positions.filter(p => p.readings.length >= 3).length;
+  const measured = state.positions.filter(p => p.readings.length).length;
   $('runName').value = state.name;
-  $('setupSummary').textContent = `${fmt(state.setup.I, 2)} A  ·  ${fmt(state.setup.dw, 2)} mm wire  ·  d = ${fmt(state.setup.d, 1)} mm  ·  ${E.N1} + ${E.N2} turns  ·  target ${fmt(state.setup.h1, 1)} → ${fmt(state.setup.h2, 1)} Oe`;
-  $('progressCount').textContent = `${complete} / ${state.positions.length}`;
+  $('setupSummary').textContent = `I ${fmt(state.setup.I, 3)} A  ·  d ${fmt(state.setup.d, 1)} mm  ·  R1 ${fmt(state.setup.c1.R, 2)} mm  ·  R2 ${fmt(state.setup.c2.R, 2)} mm  ·  Target ${fmt(state.setup.h1, 1)} → ${fmt(state.setup.h2, 1)} Oe  ·  ${measured} measured points`;
+  $('progressCount').textContent = `${complete} / ${state.positions.length} positions`;
   $('progressBar').style.width = `${100 * complete / Math.max(1, state.positions.length)}%`;
   $('setupChanged').hidden = !state.ui.setupChanged;
   $('genEnd').value = state.setup.d;
 }
-function metricRow(label, value) { return `<div class="metric-row"><span>${label}</span><strong>${value}</strong></div>`; }
 function renderTheory() {
   const { E } = derived;
   $('theoryMax').textContent = fmt(E.maxDev, 3);
-  $('theoryMetrics').innerHTML = [
-    ['RMS deviation', `${fmt(E.rmsDev)} Oe`], ['Nonlinearity', `${fmt(E.nonlin)} Oe`],
+  $('theoryMetrics').textContent = `Max ${fmt(E.maxDev)} · RMS ${fmt(E.rmsDev)} · Nonlin ${fmt(E.nonlin)} Oe`;
+  $('theoryMore').innerHTML = [
     ['Model slope', `${fmt(E.fit.a / 100)} Oe/cm`], ['Start field', `${fmt(E.hAt0)} Oe`],
     ['End field', `${fmt(E.hAtD)} Oe`], ['Coil 1 alone', `${fmt(E.h1solo)} Oe`]
-  ].map(([k, v]) => metricRow(k, v)).join('');
+  ].map(([label, value]) => `<div><span>${label}</span><strong>${value}</strong></div>`).join('');
 }
 function renderDecision() {
   const { metrics } = derived;
+  $('decisionStatus').textContent = metrics ? `${derived.rows.length} measured ${derived.rows.length === 1 ? 'position' : 'positions'}` : 'No measurements yet';
   const items = [
-    ['Max target error', metrics?.target.maxAbs, 'Measured − Target'],
-    ['Target RMSE', metrics?.target.rmse, 'Across measured positions'],
-    ['Model 2 RMSE', metrics?.model.rmse, 'Measured − Model 2']
+    ['MAX DEVIATION', metrics?.target.maxAbs, 'largest |Measured − Target|'],
+    ['TARGET RMSE', metrics?.target.rmse, 'overall target agreement'],
+    ['MODEL RMSE', metrics?.model.rmse, 'measurement vs Model 2']
   ];
   $('decisionMetrics').innerHTML = items.map(([label, value, hint]) =>
-    `<div class="decision-metric" title="${hint}"><span>${label}</span><strong>${fmt(value, 3)} <small>Oe</small></strong></div>`
+    `<div class="decision-metric"><span>${label}</span><strong>${fmt(value, 3)} <small>Oe</small></strong><small>${hint}</small></div>`
   ).join('');
   const endpoints = [
     ['Start', 0, state.setup.h1], ['End', state.setup.d, state.setup.h2]
@@ -118,52 +119,59 @@ function renderDecision() {
   $('decisionEndpoints').innerHTML = endpoints.map(([label, x, target]) => {
     const point = state.positions.find(p => Math.abs(p.x - x) < .00005);
     const mean = point?.readings.length ? measurementStats(point.readings).mean : null;
-    return `<div class="endpoint"><span>${label} · x = ${fmt(x, 1)} mm</span><strong>${fmt(mean)} <small>Oe</small></strong><small>${mean == null ? `Target ${fmt(target, 2)} Oe` : `Δ ${signed(mean - target)} Oe vs target`}</small></div>`;
+    return `<div class="endpoint"><span>${label.toUpperCase()} · ${fmt(x, 1)} mm</span><strong>${fmt(mean)} <small>Oe</small></strong><small>Target ${fmt(target, 2)} · Δ ${signed(mean == null ? null : mean - target)} Oe</small></div>`;
   }).join('');
 }
 function renderKpis() {
-  const { fit, metrics, S } = derived;
+  const { fit, metrics, S, rows } = derived;
+  const displayFit = rows.length >= 3 ? fit : null;
   const targetSlope = (S.h2 - S.h1) / S.d / 100;
-  const slopeDifference = fit ? (fit.a / 100 / targetSlope - 1) * 100 : null;
+  const slopeDifference = displayFit ? (displayFit.a / 100 / targetSlope - 1) * 100 : null;
   const list = [
-    ['Measured slope', fit ? signed(fit.a / 100, 3) : '—', 'Oe/cm', slopeDifference == null ? 'Awaiting two positions' : `${signed(slopeDifference, 1)}% vs target`],
-    ['Weighted R²', fit ? fmt(fit.r2, 4) : '—', '', 'Measurement linearity'],
+    ['Measured slope', displayFit ? signed(displayFit.a / 100, 3) : '—', 'Oe/cm', slopeDifference == null ? 'Need 3 measured positions' : `${signed(slopeDifference, 1)}% from target`],
+    ['Weighted R²', displayFit ? fmt(displayFit.r2, 4) : '—', '', displayFit ? 'measurement linearity' : 'Need 3 measured positions'],
     ['Mean STDEV', metrics ? fmt(metrics.meanSd) : '—', 'Oe', 'Repeatability'],
     ['Max STDEV', metrics ? fmt(metrics.maxSd) : '—', 'Oe', 'Largest observed scatter']
   ];
   $('experimentalKpis').innerHTML = list.map(([k, v, unit, sub]) => `<div class="kpi"><span>${k}</span><strong>${v} <small>${unit}</small></strong><small>${sub}</small></div>`).join('');
 }
 function renderPositions() {
-  $('positionRail').innerHTML = state.positions.map(p => `<button type="button" data-x="${p.x}" class="${p.x === state.selectedX ? 'selected' : p.readings.length >= 3 ? 'complete' : ''}" aria-pressed="${p.x === state.selectedX}">${fmt(p.x, 1)}<span>${p.readings.length >= 3 ? 'complete' : p.x === state.selectedX ? 'current' : p.readings.length ? `${p.readings.length} readings` : 'pending'}</span></button>`).join('');
+  $('positionRail').innerHTML = state.positions.map(p => `<button type="button" data-x="${p.x}" class="${p.x === state.selectedX ? 'selected' : p.readings.length >= 3 ? 'complete' : p.readings.length ? 'partial' : ''}" aria-pressed="${p.x === state.selectedX}" title="${p.readings.length} readings at ${fmt(p.x, 2)} mm"><i aria-hidden="true"></i>${fmt(p.x, 1)}</button>`).join('') + '<button type="button" data-action="manage" class="rail-add" aria-label="Manage measurement positions" title="Manage positions">+</button>';
 }
 function renderCurrent(rebuildReadings) {
   const p = selected(), { E, target } = derived;
   if (!p) return;
   $('currentX').textContent = `${fmt(p.x, 2)} mm`;
+  const st = measurementStats(p.readings);
   $('currentComparison').innerHTML = [
-    ['Target', target(p.x)], ['Model 2', E.total(p.x / 1000)]
-  ].map(([k, v]) => `<div class="comparison"><span>${k}</span><strong>${fmt(v)} <small>Oe</small></strong></div>`).join('');
+    ['Target', target(p.x)], ['Model 2', E.total(p.x / 1000)],
+    ['Δ Target', st.mean == null ? null : st.mean - target(p.x)],
+    ['Δ Model', st.mean == null ? null : st.mean - E.total(p.x / 1000)]
+  ].map(([k, v]) => `<span>${k} <strong>${k.startsWith('Δ') ? signed(v) : fmt(v)}</strong> Oe</span>`).join('');
   if (rebuildReadings || !$('readingInputs').children.length || Number($('readingInputs').dataset.x) !== p.x) {
     $('readingInputs').dataset.x = p.x;
     $('readingInputs').innerHTML = Array.from({ length: Math.max(3, p.readings.length) }, (_, i) => `<label>Reading ${i + 1}<input type="number" step="any" inputmode="decimal" data-index="${i}" value="${p.readings[i] ?? ''}" aria-label="Reading ${i + 1} at x ${p.x} mm"></label>`).join('');
   }
-  const st = measurementStats(p.readings);
-  $('currentStats').innerHTML = `<span>Mean <strong>${fmt(st.mean)}</strong> Oe</span><span>STDEV <strong>${fmt(st.sd)}</strong> Oe</span><span>Δ target <strong>${signed(st.mean == null ? null : st.mean - target(p.x))}</strong> Oe</span>`;
+  $('currentStats').innerHTML = `<div><span>MEAN</span><strong>${fmt(st.mean)} <small>Oe</small></strong></div><div><span>SD</span><strong>${fmt(st.sd)} <small>Oe</small></strong></div>`;
 }
 function tooltip(x, event) {
   const p = derived.rows.find(q => q.x === x); if (!p) return;
-  const model = derived.E.total(x / 1000), target = derived.target(x), fit = derived.fit ? derived.fit.a * x / 1000 + derived.fit.b : null;
-  const pairs = [['Raw', p.readings.join(', ')], ['Mean', fmt(p.mean)], ['STDEV', fmt(p.sd)], ['Target', fmt(target)], ['Model 2', fmt(model)], ['Weighted fit', fmt(fit)], ['Δ target', signed(p.mean - target)], ['Δ model', signed(p.mean - model)], ['Δ fit', signed(fit == null ? null : p.mean - fit)]];
+  const model = derived.E.total(x / 1000), target = derived.target(x);
+  const fit = derived.rows.length >= 3 && derived.fit ? derived.fit.a * x / 1000 + derived.fit.b : null;
+  const pairs = [['Target', fmt(target)], ['Model 2', fmt(model)], ...(state.ui.showModel1 ? [['Model 1', fmt(derived.E.thin(x / 1000))]] : []), ['Measured', fmt(p.mean)], ['STDEV', fmt(p.sd)], ['Fit', fmt(fit)], ['Δ Target', signed(p.mean - target)], ['Δ Model', signed(p.mean - model)], ['Raw', p.readings.join(', ')]];
   const tip = $('chartTooltip'); tip.innerHTML = `<strong>x = ${fmt(x, 2)} mm</strong><dl>${pairs.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`;
-  const rect = $('mainChart').getBoundingClientRect(), host = $('mainChart').parentElement.getBoundingClientRect();
+  const host = $('mainChart').parentElement.getBoundingClientRect();
   tip.style.left = `${Math.min(event.clientX - host.left + 15, host.width - 195)}px`;
   tip.style.top = `${Math.max(8, event.clientY - host.top - 115)}px`; tip.hidden = false;
 }
 function renderCharts() {
   const { S, E, rows, fit, lm, metrics } = derived;
+  const displayFit = rows.length >= 3 ? fit : null;
   $('chartTooltip').hidden = true;
-  drawMain($('mainChart'), { S, E, rows, fit, lm, selectedX: state.selectedX, showFit: state.ui.showFit, showModel1: state.ui.showModel1, showLm: state.ui.showLm, onSelect: setSelection, onHover: tooltip, onLeave: () => $('chartTooltip').hidden = true });
-  $('fitLegend').hidden = !state.ui.showFit || !fit;
+  drawMain($('mainChart'), { S, E, rows, fit: displayFit, lm, selectedX: state.selectedX, showFit: state.ui.showFit, showModel1: state.ui.showModel1, showLm: state.ui.showLm, onSelect: setSelection, onHover: tooltip, onLeave: () => $('chartTooltip').hidden = true });
+  $('showFit').disabled = !displayFit;
+  $('fitAvailability').hidden = !!displayFit;
+  $('fitLegend').hidden = !state.ui.showFit || !displayFit;
   $('model1Legend').hidden = !state.ui.showModel1;
   $('lmLegend').hidden = !state.ui.showLm || !lm;
   const common = { xMax: state.setup.d, selectedX: state.selectedX, onSelect: setSelection };
@@ -172,32 +180,31 @@ function renderCharts() {
   const mode = state.ui.residualMode, active = metrics?.[mode];
   $('residualTarget').setAttribute('aria-pressed', String(mode === 'target'));
   $('residualModel').setAttribute('aria-pressed', String(mode === 'model'));
-  document.querySelector('.residual-grid').dataset.mode = mode;
+  document.querySelector('.residual-panel').dataset.mode = mode;
   $('targetResidualChart').setAttribute('aria-hidden', String(mode !== 'target'));
   $('modelResidualChart').setAttribute('aria-hidden', String(mode !== 'model'));
   $('residualTitle').textContent = mode === 'target' ? 'Measured − Target' : 'Measured − Model 2';
-  $('residualMax').textContent = active ? `${fmt(active.maxAbs)} Oe at ${fmt(active.at, 1)} mm` : '—';
+  $('residualMax').textContent = active ? `${fmt(active.maxAbs)} Oe @ ${fmt(active.at, 1)} mm` : '—';
+  $('residualRmse').textContent = active ? `${fmt(active.rmse)} Oe` : '—';
   $('residualBias').textContent = active ? `${signed(active.bias)} Oe` : '—';
   const residualValues = metrics ? (mode === 'target' ? metrics.targetResidual : metrics.modelResidual).map(p => p.value) : [];
   $('residualInterpretation').textContent = !active ? 'Awaiting readings' : residualValues.length < 2 ? 'Add another position' :
     mode === 'target' && active.maxAbs <= 1 ? 'Within ±1 Oe at measured points' :
     residualValues.some(v => v > 0) && residualValues.some(v => v < 0) ? 'Residual changes sign' :
     active.bias > 0 ? 'Measured field stays above comparison' : 'Measured field stays below comparison';
-  const badge = $('trackingBadge');
-  badge.textContent = !metrics ? 'Awaiting measurements' : metrics.target.maxAbs <= 1 ? 'All measured points within ±1 Oe' : 'A measured point exceeds ±1 Oe';
-  badge.className = `tracking-badge ${!metrics ? '' : metrics.target.maxAbs <= 1 ? 'good' : 'attention'}`;
   $('targetResidualSummary').textContent = metrics ? `RMSE ${fmt(metrics.target.rmse)} · bias ${signed(metrics.target.bias)} Oe` : 'Awaiting measurements';
   $('modelResidualSummary').textContent = metrics ? `RMSE ${fmt(metrics.model.rmse)} · bias ${signed(metrics.model.bias)} Oe` : 'Awaiting measurements';
 }
 function renderSlope() {
-  const { S, E, fit } = derived;
-  const slopes = [{ label: 'TARGET', value: (S.h2 - S.h1) / S.d / 100, color: '#239b9a' },
-    { label: 'MODEL 2', value: E.fit.a / 100, color: '#dfa526' },
-    { label: 'MEASURED', value: fit?.a / 100, color: '#dc629a' }];
+  const { S, E, fit, rows } = derived;
+  const displayFit = rows.length >= 3 ? fit : null;
+  const slopes = [{ label: 'TARGET', value: (S.h2 - S.h1) / S.d / 100, color: '#858b8a' },
+    { label: 'MODEL 2', value: E.fit.a / 100, color: '#2878a5' },
+    { label: 'MEASURED', value: displayFit?.a / 100, color: '#bb683d' }];
   const finite = slopes.map(s => s.value).filter(Number.isFinite), lo = Math.min(...finite), hi = Math.max(...finite), span = Math.max(.1, hi - lo);
   $('slopeVisual').innerHTML = slopes.map(s => `<div class="slope-row"><span>${s.label}</span><div class="slope-track">${Number.isFinite(s.value) ? `<i style="--dot:${s.color};left:${15 + 70 * (s.value - lo) / span}%"></i>` : ''}</div><strong>${fmt(s.value)} Oe/cm</strong></div>`).join('');
-  const pct = fit ? (fit.a / ((S.h2 - S.h1) / S.d) - 1) * 100 : null;
-  $('slopeDelta').textContent = pct == null ? 'Awaiting linear fit' : `Measured vs target ${signed(pct, 1)}%`;
+  const pct = displayFit ? (displayFit.a / ((S.h2 - S.h1) / S.d) - 1) * 100 : null;
+  $('slopeDelta').textContent = pct == null ? 'Need 3 measured positions' : `Measured vs target ${signed(pct, 1)}%`;
 }
 function renderTable() {
   const { E, target, fit } = derived;
@@ -205,7 +212,7 @@ function renderTable() {
     const st = measurementStats(p.readings), model = E.total(p.x / 1000), t = target(p.x), fv = fit ? fit.a * p.x / 1000 + fit.b : null;
     const status = st.n >= 3 ? 'complete' : st.n ? 'partial' : 'empty';
     const val = q => q == null ? '—' : fmt(q);
-    return `<tr data-x="${p.x}" class="${p.x === state.selectedX ? 'selected' : ''}"><td><details class="raw-detail"><summary>${fmt(p.x, 2)}</summary><span>Raw: ${p.readings.length ? p.readings.map(v => fmt(v, 3)).join(', ') : 'No readings'}</span></details></td><td>${st.n}</td><td>${val(st.mean)}</td><td>${val(st.sd)}</td><td>${fmt(t)}</td><td>${fmt(model)}</td><td>${val(fv)}</td><td>${signed(st.mean == null ? null : st.mean - t)}</td><td>${signed(st.mean == null ? null : st.mean - model)}</td><td>${signed(st.mean == null || fv == null ? null : st.mean - fv)}</td><td class="status-${status}">${status}</td></tr>`;
+    return `<tr data-x="${p.x}" class="${p.x === state.selectedX ? 'selected' : ''}"><td><details class="raw-detail"><summary>${fmt(p.x, 2)}</summary><span>Raw: ${p.readings.length ? p.readings.map(v => fmt(v, 3)).join(', ') : 'No readings'}</span></details></td><td>${st.n}</td><td>${val(st.mean)}</td><td>${val(st.sd)}</td><td>${fmt(t)}</td><td>${fmt(model)}</td><td class="fit-column">${val(fv)}</td><td>${signed(st.mean == null ? null : st.mean - t)}</td><td>${signed(st.mean == null ? null : st.mean - model)}</td><td class="fit-column">${signed(st.mean == null || fv == null ? null : st.mean - fv)}</td><td class="status-${status}">${status}</td></tr>`;
   }).join('');
 }
 function renderLm() {
@@ -219,7 +226,7 @@ function renderLm() {
     const j = lm.active.findIndex(a => a.key === f.key);
     return `<tr><td>${f.label}${j < 0 ? ' (fixed)' : ''}</td><td>${fmt(lm.design[f.key], 4)}</td><td>${fmt(lm.P[f.key], 4)}</td><td>${j < 0 ? '—' : fmt(lm.se[j], 4)}</td><td>${f.unit}</td></tr>`;
   }).join('');
-  drawLmOverlay($('lmChart'), { S, E, rows, lm }); drawLmResidual($('lmResidualChart'), { S, E, rows, lm });
+  if ($('lmSection').open) { drawLmOverlay($('lmChart'), { S, E, rows, lm }); drawLmResidual($('lmResidualChart'), { S, E, rows, lm }); }
 }
 
 const SETUP_GROUPS = [
@@ -299,7 +306,8 @@ function exportCsv() {
   download('coil-experiment-measurements.csv', [head.join(','), ...lines].join('\r\n'), 'text/csv;charset=utf-8');
 }
 function copyTable() {
-  const rows = [...$('measurementTable').querySelectorAll('tr')].map(tr => [...tr.children].map(td => td.textContent.trim()).join('\t'));
+  const includeFit = $('showFitColumns').checked;
+  const rows = [...$('measurementTable').querySelectorAll('tr')].map(tr => [...tr.children].filter(td => includeFit || !td.classList.contains('fit-column')).map(td => td.textContent.trim()).join('\t'));
   navigator.clipboard.writeText(rows.join('\n')).then(() => $('saveStatus').textContent = 'Table copied').catch(() => $('saveStatus').textContent = 'Clipboard unavailable');
 }
 async function importDataFile(file) {
@@ -334,7 +342,11 @@ $('setupFields').addEventListener('change', e => { if (e.target.dataset.path) mu
 $('applyModel').onclick = () => { state.ui.setupChanged = false; changed(); };
 $('freshMeasurements').onclick = () => { state.positions.forEach(p => p.readings = []); state.ui.setupChanged = false; state.lmSettings.active = false; changed({ rebuildReadings: true }); };
 $('runName').addEventListener('change', e => { state.name = e.target.value.trim() || 'New experiment'; changed(); });
-$('positionRail').onclick = e => { const b = e.target.closest('button[data-x]'); if (b) setSelection(Number(b.dataset.x), true); };
+$('positionRail').onclick = e => {
+  const b = e.target.closest('button');
+  if (b?.dataset.x) setSelection(Number(b.dataset.x), true);
+  else if (b?.dataset.action === 'manage') { $('measurementData').open = true; $('newPosition').focus(); }
+};
 $('addPosition').onclick = () => { if (addPosition($('newPosition').value)) $('newPosition').value = ''; };
 $('newPosition').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('addPosition').click(); } });
 $('editPosition').onclick = () => {
@@ -377,7 +389,8 @@ $('saveNext').onclick = () => {
   if (i >= 0 && i < state.positions.length - 1) setSelection(state.positions[i + 1].x, true);
   else { $('saveStatus').textContent = 'End of positions'; $('saveNext').focus(); }
 };
-$('measurementTable').addEventListener('click', e => { if (e.target.closest('details')) return; const tr = e.target.closest('tr[data-x]'); if (tr) setSelection(Number(tr.dataset.x), true); });
+$('measurementTable').addEventListener('click', e => { if (e.target.closest('.raw-detail')) return; const tr = e.target.closest('tr[data-x]'); if (tr) setSelection(Number(tr.dataset.x), true); });
+$('showFitColumns').onchange = e => $('measurementData').classList.toggle('show-fit-columns', e.target.checked);
 $('showModel1').onchange = e => { state.ui.showModel1 = e.target.checked; changed(); };
 $('showLm').onchange = e => { state.ui.showLm = e.target.checked; changed(); };
 $('showFit').onchange = e => { state.ui.showFit = e.target.checked; changed(); };
@@ -422,7 +435,7 @@ $('rawInput').addEventListener('drop', e => { if (e.dataTransfer.files.length) {
 $('showModel1').checked = state.ui.showModel1;
 $('showLm').checked = state.ui.showLm;
 $('showFit').checked = state.ui.showFit;
-$('analysisSection').addEventListener('toggle', () => { if ($('analysisSection').open) { renderCharts(); if (derived.lm) renderLm(); } });
+$('lmSection').addEventListener('toggle', () => { if ($('lmSection').open && derived.lm) renderLm(); });
 let resizeTimer;
 window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { renderCharts(); if (derived.lm) renderLm(); }, 100); });
 renderAll({ rebuildReadings: true });

@@ -1,5 +1,5 @@
 const NS = 'http://www.w3.org/2000/svg';
-const C = { target: '#29a7a5', model: '#e8ae2f', measurement: '#e568a5', fit: '#8057b4', model1: '#3977b4', lm: '#4c9868' };
+const C = { target: '#858b8a', model: '#2878a5', measurement: '#bb683d', fit: '#796b96', model1: '#2f8981', lm: '#538266' };
 const f = n => Number(n).toFixed(2);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
@@ -34,9 +34,10 @@ function extent(values, padding = .09) {
 }
 function circles(svg, rows, X, Y, selectedX, onSelect, onHover, onLeave, radius = 5) {
   for (const row of rows) {
+    if (row.x === selectedX) svg.insertAdjacentHTML('beforeend', `<circle cx="${X(row.x)}" cy="${Y(row.y)}" r="${radius + 5}" fill="none" stroke="${C.measurement}" stroke-width="1.5" opacity=".65" vector-effect="non-scaling-stroke"/>`);
     const circle = document.createElementNS(NS, 'circle');
     circle.setAttribute('cx', X(row.x)); circle.setAttribute('cy', Y(row.y));
-    circle.setAttribute('r', row.x === selectedX ? radius + 2 : radius);
+    circle.setAttribute('r', row.x === selectedX ? radius + 1 : radius);
     circle.setAttribute('fill', C.measurement); circle.setAttribute('stroke', '#fff'); circle.setAttribute('stroke-width', '2');
     circle.setAttribute('class', 'point-hit'); circle.setAttribute('tabindex', '0');
     circle.setAttribute('role', 'button'); circle.setAttribute('aria-label', `Select x ${row.x} millimeters`);
@@ -50,16 +51,17 @@ function circles(svg, rows, X, Y, selectedX, onSelect, onHover, onLeave, radius 
 }
 
 export function drawMain(svg, { S, E, rows, fit, lm, selectedX, showFit, showModel1, showLm, onSelect, onHover, onLeave }) {
+  const fitRange = rows.length ? [rows[0].x / 1000, rows[rows.length - 1].x / 1000] : [0, S.d];
   const values = [...E.wm, ...E.wt, ...rows.flatMap(p => [p.mean - p.sd, p.mean + p.sd])];
-  if (fit && showFit) values.push(fit.b, fit.a * S.d + fit.b);
+  if (fit && showFit) values.push(...fitRange.map(x => fit.a * x + fit.b));
   if (lm && showLm) for (let i = 0; i <= 100; i++) values.push(lm.fn(i * S.d * 1000 / 100));
   const [yMin, yMax] = extent(values);
   const { X, Y } = base(svg, { width: Math.max(320, svg.clientWidth), height: Math.max(240, svg.clientHeight), xMax: S.d * 1000, yMin, yMax });
   const xys = vals => E.wx.map((x, i) => ({ x: x * 1000, y: vals[i] }));
-  addPath(svg, xys(E.wt), X, Y, C.target, 2, '7 5');
+  addPath(svg, xys(E.wt), X, Y, C.target, 1.5, '6 5');
   if (showModel1) addPath(svg, xys(E.wthin), X, Y, C.model1, 1.6, '5 5');
-  addPath(svg, xys(E.wm), X, Y, C.model, 3);
-  if (fit && showFit) addPath(svg, [{ x: 0, y: fit.b }, { x: S.d * 1000, y: fit.a * S.d + fit.b }], X, Y, C.fit, 2.5);
+  addPath(svg, xys(E.wm), X, Y, C.model, 2.6);
+  if (fit && showFit) addPath(svg, fitRange.map(x => ({ x: x * 1000, y: fit.a * x + fit.b })), X, Y, C.fit, 1.8, '7 4');
   if (lm && showLm) addPath(svg, Array.from({ length: 121 }, (_, i) => ({ x: i * S.d * 1000 / 120, y: lm.fn(i * S.d * 1000 / 120) })), X, Y, C.lm, 2.4, '10 4');
   for (const row of rows) {
     const x = X(row.x), a = Y(row.mean - row.sd), b = Y(row.mean + row.sd);
@@ -88,12 +90,15 @@ export function drawResidual(svg, { xMax, rows, selectedX, color = C.measurement
 }
 
 export function drawLmOverlay(svg, { S, E, rows, lm }) {
-  const values = [...E.wm, ...rows.map(p => p.mean), ...Array.from({ length: 61 }, (_, i) => lm.fn(i * S.d * 1000 / 60))];
+  const values = [...E.wm, ...rows.flatMap(p => [p.mean - p.sd, p.mean + p.sd]), ...Array.from({ length: 61 }, (_, i) => lm.fn(i * S.d * 1000 / 60))];
   const [yMin, yMax] = extent(values);
   const { X, Y } = base(svg, { width: Math.max(320, svg.clientWidth), height: Math.max(190, svg.clientHeight), xMax: S.d * 1000, yMin, yMax, yTicks: 4 });
   addPath(svg, E.wx.map((x, i) => ({ x: x * 1000, y: E.wm[i] })), X, Y, C.model, 2);
   addPath(svg, Array.from({ length: 121 }, (_, i) => ({ x: i * S.d * 1000 / 120, y: lm.fn(i * S.d * 1000 / 120) })), X, Y, C.lm, 2.4);
-  for (const p of rows) svg.insertAdjacentHTML('beforeend', `<circle cx="${X(p.x)}" cy="${Y(p.mean)}" r="3" fill="${C.measurement}"/>`);
+  for (const p of rows) {
+    const x = X(p.x), upper = Y(p.mean + p.sd), lower = Y(p.mean - p.sd);
+    svg.insertAdjacentHTML('beforeend', `<path d="M${x},${upper}V${lower} M${x - 4},${upper}H${x + 4} M${x - 4},${lower}H${x + 4}" stroke="${C.measurement}" stroke-width="1.4" fill="none" vector-effect="non-scaling-stroke"/><circle cx="${x}" cy="${Y(p.mean)}" r="3.5" fill="${C.measurement}"/>`);
+  }
 }
 
 export function drawLmResidual(svg, { S, rows, E, lm }) {

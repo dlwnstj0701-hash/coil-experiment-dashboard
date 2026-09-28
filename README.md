@@ -16,11 +16,11 @@ Import the repository into Vercel. Choose **Other** framework, leave the build c
 
 ## Workflow
 
-1. Open **Setup** and set current, wire diameter, coil geometry, winding directions, and target endpoints. Coordinates run from coil 1 center (`x=0`) to coil 2 center (`x=d`).
-2. Select a position in the measurement panel, enter readings, then use **Save & next**. Enter advances through the reading fields. **Manage positions** adds, edits, deletes, or generates positions; chart points also select positions.
-3. Compare the target, Model 2, and measured points in the field profile. **Curves** reveals optional weighted-fit, Model 1, and LM lines. The compact summary shows maximum target error and both RMSE values. Open **Analysis & records** only when needed for residuals, slope and theoretical-model details, or the full measurement table.
-4. After at least three positions have readings, run **Advanced LM analysis** to estimate physical parameters. Choose free parameters and weighting; the table and before/after plots report the result. Strongly correlated parameters need cautious interpretation.
-5. Runs autosave in the browser. **Save run** stores named snapshots, **Runs** loads or starts runs, and **Export** downloads JSON, CSV, or chart PNG. Advanced input accepts repeated-measurement text and CSV/TSV/TXT/XLSX (first worksheet).
+1. Open **Edit setup** to set current, wire diameter, coil geometry, winding directions, and target endpoints. Coordinates run from coil 1 center (`x=0`) to coil 2 center (`x=d`).
+2. The field profile and decision panel compare measured points with the target and Model 2. The four-metric strip summarizes slope, weighted R², and STDEV; the residual fingerprint switches between target and model errors. **Curves** controls the optional Model 1 and LM lines. Weighted fit appears after three measured positions.
+3. Select a position from the compact rail or either graph, enter repeated readings, and use **Save & next**. Enter advances through reading fields. The rail's plus button opens **Measurement data**, where positions can be added, edited, deleted, or generated, and the full table and raw readings can be inspected.
+4. Open **Advanced model fitting** to choose free parameters and weighting, then run the LM fit. The parameter table and original/fitted graphs remain inside that section. Strongly correlated parameters need cautious interpretation.
+5. Runs autosave in the browser. **Data tools** contains named snapshots, reset, JSON/CSV/PNG export, table copy, and repeated-measurement text or CSV/TSV/TXT/XLSX import (first worksheet).
 
 ## Reference mapping and numerical behavior
 
