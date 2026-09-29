@@ -73,12 +73,16 @@ export function findInflection(f, xa, xb) {
 
 export function setupToState(setup) {
   const dw = setup.dw / 1000, d = setup.d / 1000;
+  const outerFaces = setup.coordinateReference === 'outer';
+  const c1EdgeOffset = outerFaces ? (setup.c1.windingWidth / 2 + setup.c1.plateThickness) / 1000 : 0;
+  const c2EdgeOffset = outerFaces ? (setup.c2.windingWidth / 2 + setup.c2.plateThickness) / 1000 : 0;
   const mk = (c, xc) => ({
     R: Math.max(1e-4, c.R / 1000), m: Math.max(1, Math.round(c.m)),
     n: Math.max(1, Math.round(c.n)), last: Math.min(Math.max(1, Math.round(c.last)), Math.max(1, Math.round(c.m))),
     dw, xc, dir: c.dir
   });
-  return { I: setup.I || 1, dw, d, c1: mk(setup.c1, 0), c2: mk(setup.c2, d), xa: 0, xb: d, h1: setup.h1, h2: setup.h2 };
+  return { I: setup.I || 1, dw, d, c1: mk(setup.c1, -c1EdgeOffset), c2: mk(setup.c2, d + c2EdgeOffset),
+    c2EdgeOffset, coordinateReference: setup.coordinateReference, xa: 0, xb: d, h1: setup.h1, h2: setup.h2 };
 }
 
 export function evaluate(S, nWin = 121) {

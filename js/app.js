@@ -9,11 +9,11 @@ const fmt = (v, d = 3) => v == null || !Number.isFinite(v) ? '—' : Number(v).t
 const signed = (v, d = 3) => v == null || !Number.isFinite(v) ? '—' : `${v >= 0 ? '+' : ''}${v.toFixed(d)}`;
 const AUTOSAVE = 'coil-experiment-dashboard:autosave:v1';
 const SAVED = 'coil-experiment-dashboard:runs:v1';
-const DEFAULT_SETUP = { I: 1, dw: .5, d: 53.6, h1: 25, h2: 10,
-  c1: { R: 46.25, m: 40, n: 5, last: 26, dir: 1 },
-  c2: { R: 22.25, m: 11, n: 1, last: 11, dir: 1 } };
-const DEFAULT_POSITIONS = [0, 4.5, 10, 17.5, 23, 31.2, 41, 53.6];
-const fresh = () => ({ version: 1, name: 'New experiment', setup: structuredClone(DEFAULT_SETUP),
+const DEFAULT_SETUP = { I: 1, dw: .5, d: 40, h1: 25, h2: 10, coordinateReference: 'outer',
+  c1: { R: 46.25, m: 40, n: 5, last: 26, dir: 1, windingWidth: 20, plateThickness: 4 },
+  c2: { R: 22.25, m: 11, n: 1, last: 11, dir: 1, windingWidth: 10, plateThickness: 4 } };
+const DEFAULT_POSITIONS = [0, 4.5, 10, 17.5, 23, 31.2, 40];
+const fresh = () => ({ version: 2, name: 'New experiment', setup: structuredClone(DEFAULT_SETUP),
   positions: DEFAULT_POSITIONS.map(x => ({ x, readings: [] })), selectedX: 0,
   linearFitSettings: { weighted: true }, lmSettings: { keys: ['k', 'R1'], weighted: true, maxIterations: 80, active: false },
   ui: { showFit: true, showModel1: false, showLm: false, setupChanged: false, residualMode: 'target' } });
@@ -24,7 +24,7 @@ function loadAutosave() {
   try { return normalize(JSON.parse(localStorage.getItem(AUTOSAVE))); } catch (_) { return null; }
 }
 function normalize(raw) {
-  if (!raw || raw.version !== 1 || !raw.setup || !Array.isArray(raw.positions)) return null;
+  if (!raw || ![1, 2].includes(raw.version) || !raw.setup || !Array.isArray(raw.positions)) return null;
   const next = fresh();
   next.name = String(raw.name || next.name).slice(0, 120);
   for (const key of ['I', 'dw', 'd', 'h1', 'h2']) {
@@ -37,7 +37,13 @@ function normalize(raw) {
       if (!Number.isFinite(Number(raw.setup[c][key]))) return null;
       next.setup[c][key] = Number(raw.setup[c][key]);
     }
+    for (const key of ['windingWidth', 'plateThickness']) {
+      if (raw.setup[c][key] == null) continue;
+      if (!Number.isFinite(Number(raw.setup[c][key]))) return null;
+      next.setup[c][key] = Number(raw.setup[c][key]);
+    }
   }
+  next.setup.coordinateReference = raw.setup.coordinateReference || (raw.version === 1 ? 'centers' : 'outer');
   if (!validSetup(next.setup)) return null;
   next.positions = raw.positions.map(p => ({ x: Number(p.x), readings: Array.isArray(p.readings) ? p.readings.map(Number).filter(Number.isFinite) : [] }))
     .sort((a, b) => a.x - b.x);
@@ -51,8 +57,8 @@ function normalize(raw) {
   return next;
 }
 function validSetup(s) {
-  if (![s.I, s.dw, s.d, s.h1, s.h2].every(Number.isFinite) || s.I <= 0 || s.dw <= 0 || s.d <= 0 || s.h1 === s.h2) return false;
-  return ['c1', 'c2'].every(c => { const q = s[c]; return q && q.R > 0 && Number.isInteger(q.m) && q.m > 0 && Number.isInteger(q.n) && q.n > 0 && Number.isInteger(q.last) && q.last > 0 && q.last <= q.m && [1, -1].includes(q.dir) && q.R - (q.n - 1) * s.dw / 2 > 0; });
+  if (![s.I, s.dw, s.d, s.h1, s.h2].every(Number.isFinite) || s.I <= 0 || s.dw <= 0 || s.d <= 0 || s.h1 === s.h2 || !['outer', 'centers'].includes(s.coordinateReference)) return false;
+  return ['c1', 'c2'].every(c => { const q = s[c]; return q && q.R > 0 && Number.isInteger(q.m) && q.m > 0 && Number.isInteger(q.n) && q.n > 0 && Number.isInteger(q.last) && q.last > 0 && q.last <= q.m && [1, -1].includes(q.dir) && q.R - (q.n - 1) * s.dw / 2 > 0 && Number.isFinite(q.windingWidth) && q.windingWidth > 0 && Number.isFinite(q.plateThickness) && q.plateThickness >= 0; });
 }
 function persist() {
   try { localStorage.setItem(AUTOSAVE, JSON.stringify(state)); $('saveStatus').textContent = 'Saved locally'; }
@@ -88,7 +94,7 @@ function renderHeader() {
   const complete = state.positions.filter(p => p.readings.length >= 3).length;
   const measured = state.positions.filter(p => p.readings.length).length;
   $('runName').value = state.name;
-  $('setupSummary').textContent = `I ${fmt(state.setup.I, 3)} A  ·  d ${fmt(state.setup.d, 1)} mm  ·  R1 ${fmt(state.setup.c1.R, 2)} mm  ·  R2 ${fmt(state.setup.c2.R, 2)} mm  ·  Target ${fmt(state.setup.h1, 1)} → ${fmt(state.setup.h2, 1)} Oe  ·  측정 위치 ${measured}곳`;
+  $('setupSummary').textContent = `I ${fmt(state.setup.I, 3)} A  ·  d ${fmt(state.setup.d, 1)} mm (${state.setup.coordinateReference === 'outer' ? '마주 보는 보빈 외측면 사이' : '코일 중심 간 · 기존 좌표'})  ·  R1 ${fmt(state.setup.c1.R, 2)} mm  ·  R2 ${fmt(state.setup.c2.R, 2)} mm  ·  Target ${fmt(state.setup.h1, 1)} → ${fmt(state.setup.h2, 1)} Oe  ·  측정 위치 ${measured}곳`;
   $('progressCount').textContent = `${complete} / ${state.positions.length} 측정 완료`;
   $('progressBar').style.width = `${100 * complete / Math.max(1, state.positions.length)}%`;
   $('setupChanged').hidden = !state.ui.setupChanged;
@@ -100,8 +106,8 @@ function renderTheory() {
   $('theoryMetrics').textContent = `Max ${fmt(E.maxDev)} · RMS ${fmt(E.rmsDev)} · Nonlin ${fmt(E.nonlin)} Oe`;
   $('theoryMore').innerHTML = [
     ['Model slope', `${fmt(E.fit.a / 100)} Oe/cm`, '이론 자기장의 감소 기울기'],
-    ['Start field', `${fmt(E.hAt0)} Oe`, '코일 1 중심의 이론값'],
-    ['End field', `${fmt(E.hAtD)} Oe`, '코일 2 중심의 이론값'],
+    ['Start field', `${fmt(E.hAt0)} Oe`, state.setup.coordinateReference === 'outer' ? '코일 1 측정면의 이론값' : '코일 1 중심의 이론값'],
+    ['End field', `${fmt(E.hAtD)} Oe`, state.setup.coordinateReference === 'outer' ? '코일 2 측정면의 이론값' : '코일 2 중심의 이론값'],
     ['Coil 1 alone', `${fmt(E.h1solo)} Oe`, '코일 1의 단독 기여']
   ].map(([label, value, description]) => `<div><span>${label}</span><strong>${value}</strong><small>${description}</small></div>`).join('');
 }
@@ -122,7 +128,8 @@ function renderDecision() {
   $('decisionEndpoints').innerHTML = endpoints.map(([label, x, target]) => {
     const point = state.positions.find(p => Math.abs(p.x - x) < .00005);
     const mean = point?.readings.length ? measurementStats(point.readings).mean : null;
-    return `<div class="endpoint"><span>${label.toUpperCase()} · ${label === 'Start' ? '코일 1 중심' : '코일 2 중심'}</span><strong>${fmt(mean)} <small>Oe</small></strong><small>목표 ${fmt(target, 2)} · 편차 ${signed(mean == null ? null : mean - target)} Oe</small></div>`;
+    const location = state.setup.coordinateReference === 'outer' ? `${label === 'Start' ? '코일 1' : '코일 2'} 측정면` : `${label === 'Start' ? '코일 1' : '코일 2'} 중심`;
+    return `<div class="endpoint"><span>${label.toUpperCase()} · ${location}</span><strong>${fmt(mean)} <small>Oe</small></strong><small>목표 ${fmt(target, 2)} · 편차 ${signed(mean == null ? null : mean - target)} Oe</small></div>`;
   }).join('');
 }
 function renderKpis() {
@@ -232,26 +239,34 @@ function renderLm() {
 
 const SETUP_GROUPS = [
   { title: 'Common & target', fields: [
-    ['I', 'Current I (A)', .01], ['dw', 'Wire diameter (mm)', .01], ['d', 'Coil separation d (mm)', .1],
+    ['I', 'Current I (A)', .01], ['dw', 'Wire diameter (mm)', .01], ['d', 'Measurement span d (mm)', .1],
+    ['coordinateReference', 'x = 0 / d reference', 'reference'],
     ['h1', 'Target start h1 (Oe)', .1], ['h2', 'Target end h2 (Oe)', .1]
   ] },
   { title: 'Coil 1', fields: [
     ['c1.R', 'Mean radius R1 (mm)', .01], ['c1.m', 'Turns per layer', 1], ['c1.n', 'Layers', 1],
-    ['c1.last', 'Turns in last layer', 1], ['c1.dir', 'Winding direction', 0]
+    ['c1.last', 'Turns in last layer', 1], ['c1.dir', 'Winding direction', 0],
+    ['c1.windingWidth', 'Bobbin winding width W1 (mm)', .1], ['c1.plateThickness', 'D-plate thickness each (mm)', .1]
   ] },
   { title: 'Coil 2', fields: [
     ['c2.R', 'Mean radius R2 (mm)', .01], ['c2.m', 'Turns per layer', 1], ['c2.n', 'Layers', 1],
-    ['c2.last', 'Turns in last layer', 1], ['c2.dir', 'Winding direction', 0]
+    ['c2.last', 'Turns in last layer', 1], ['c2.dir', 'Winding direction', 0],
+    ['c2.windingWidth', 'Bobbin winding width W2 (mm)', .1], ['c2.plateThickness', 'D-plate thickness each (mm)', .1]
   ] }
 ];
 function pathValue(o, path) { return path.split('.').reduce((q, k) => q[k], o); }
 function assignPath(o, path, value) { const parts = path.split('.'); const q = parts.length === 2 ? o[parts[0]] : o; q[parts.at(-1)] = value; }
 function renderSetupFields() {
-  $('setupFields').innerHTML = SETUP_GROUPS.map(g => `<div class="setup-group"><h3>${g.title}</h3><div class="setup-grid">${g.fields.map(([path, label, step]) => `<label>${label}${step ? `<input data-path="${path}" type="number" step="${step}" value="${pathValue(state.setup, path)}">` : `<select data-path="${path}"><option value="1" ${pathValue(state.setup, path) === 1 ? 'selected' : ''}>Forward +</option><option value="-1" ${pathValue(state.setup, path) === -1 ? 'selected' : ''}>Reverse −</option></select>`}</label>`).join('')}</div></div>`).join('');
+  $('setupFields').innerHTML = SETUP_GROUPS.map(g => `<div class="setup-group"><h3>${g.title}</h3><div class="setup-grid">${g.fields.map(([path, label, step]) => `<label>${label}${step === 'reference' ? `<select data-path="${path}"><option value="outer" ${state.setup.coordinateReference === 'outer' ? 'selected' : ''}>Facing bobbin outer faces</option><option value="centers" ${state.setup.coordinateReference === 'centers' ? 'selected' : ''}>Coil centers (legacy)</option></select>` : step ? `<input data-path="${path}" type="number" step="${step}" value="${pathValue(state.setup, path)}">` : `<select data-path="${path}"><option value="1" ${pathValue(state.setup, path) === 1 ? 'selected' : ''}>Forward +</option><option value="-1" ${pathValue(state.setup, path) === -1 ? 'selected' : ''}>Reverse −</option></select>`}</label>`).join('')}</div></div>`).join('');
 }
 function mutateSetup(input) {
-  const path = input.dataset.path, value = Number(input.value);
-  if (input.value === '' || !Number.isFinite(value)) return;
+  const path = input.dataset.path, value = path === 'coordinateReference' ? input.value : Number(input.value);
+  if (input.value === '' || path !== 'coordinateReference' && !Number.isFinite(value)) return;
+  if (path === 'coordinateReference' && value !== state.setup.coordinateReference && state.positions.some(p => p.readings.length) &&
+    !confirm('Changing the x reference will reinterpret existing measurement positions. Continue?')) {
+    input.value = state.setup.coordinateReference;
+    return;
+  }
   const next = structuredClone(state.setup); assignPath(next, path, value);
   if (!validSetup(next)) { $('setupError').textContent = 'Check positive dimensions, integer turns/layers, last layer ≤ turns, and different target endpoints.'; return; }
   if (state.positions.some(p => p.x > next.d)) { $('setupError').textContent = 'Remove positions beyond the new separation before reducing d.'; return; }

@@ -6,7 +6,7 @@ export const FITSPEC = [
   { key: 'x0', label: 'Probe zero x0', unit: 'mm' },
   { key: 'Hbg', label: 'Background Hbg', unit: 'Oe' },
   { key: 'R1', label: 'Coil 1 radius R1', unit: 'mm' },
-  { key: 'd', label: 'Separation d', unit: 'mm' },
+  { key: 'd', label: 'Measurement span d', unit: 'mm' },
   { key: 'R2', label: 'Coil 2 radius R2', unit: 'mm' }
 ];
 
@@ -48,7 +48,7 @@ export function experimentalMetrics(rows, model, target, fit) {
 
 export function modelMaker(S0, P) {
   const c1 = { ...S0.c1, R: P.R1 / 1000 };
-  const c2 = { ...S0.c2, R: P.R2 / 1000, xc: P.d / 1000 };
+  const c2 = { ...S0.c2, R: P.R2 / 1000, xc: P.d / 1000 + S0.c2EdgeOffset };
   const T1 = coilTurns(c1), T2 = coilTurns(c2);
   const I = S0.I * P.k;
   return xmm => {
