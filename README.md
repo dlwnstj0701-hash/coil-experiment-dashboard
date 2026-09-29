@@ -39,6 +39,8 @@ Inputs in the UI are mm; the physics engine uses m. For the default R45/W20 and 
 
 Runs saved with the earlier center-to-center coordinate convention keep that convention when loaded, so existing measurement positions are not silently reinterpreted. New runs use facing outer faces. The setup reference selector can change conventions explicitly; it warns before reinterpreting a run with readings.
 
+On first open after this update, a legacy center-coordinate autosave is copied into **Data tools → Load run** before the dashboard starts a new 40 mm facing-face run. Its readings remain available in the archived run.
+
 ## Verification and limits
 
 `tests/parity.test.js` uses numbers obtained by executing the reference `main/index.html` functions on its default center-coordinate setup and example measurements. It checks five field positions, target, theoretical metrics, sample STDEV, weighted slope/R², and LM parameters/errors to `1e-9` absolute tolerance. A separate test verifies the outer-face coordinate translation and LM base model without changing the magnetic field calculation. The dashboard models ideal on-axis circular turns. It assumes each winding pack is centered within its bobbin; it does not connect to instruments, simulate manufacturing tolerances, or estimate off-axis fields. Browser local storage is device/browser specific; export JSON for transfer or backup. XLSX import uses the browser's `DecompressionStream('deflate-raw')`, so use a current browser with that API.

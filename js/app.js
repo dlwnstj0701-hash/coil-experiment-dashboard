@@ -9,6 +9,7 @@ const fmt = (v, d = 3) => v == null || !Number.isFinite(v) ? '—' : Number(v).t
 const signed = (v, d = 3) => v == null || !Number.isFinite(v) ? '—' : `${v >= 0 ? '+' : ''}${v.toFixed(d)}`;
 const AUTOSAVE = 'coil-experiment-dashboard:autosave:v1';
 const SAVED = 'coil-experiment-dashboard:runs:v1';
+const OUTER_DEFAULT_MIGRATION = 'coil-experiment-dashboard:outer-default:v1';
 const DEFAULT_SETUP = { I: 1, dw: .5, d: 40, h1: 25, h2: 10, coordinateReference: 'outer',
   c1: { R: 46.25, m: 40, n: 5, last: 26, dir: 1, windingWidth: 20, plateThickness: 4 },
   c2: { R: 22.25, m: 11, n: 1, last: 11, dir: 1, windingWidth: 10, plateThickness: 4 } };
@@ -17,11 +18,29 @@ const fresh = () => ({ version: 2, name: 'New experiment', setup: structuredClon
   positions: DEFAULT_POSITIONS.map(x => ({ x, readings: [] })), selectedX: 0,
   linearFitSettings: { weighted: true }, lmSettings: { keys: ['k', 'R1'], weighted: true, maxIterations: 80, active: false },
   ui: { showFit: true, showModel1: false, showLm: false, setupChanged: false, residualMode: 'target' } });
+let legacyRunArchived = false;
 let state = loadAutosave() || fresh();
 let derived = null, currentRunKey = null, skipNextAutosave = false;
 
 function loadAutosave() {
-  try { return normalize(JSON.parse(localStorage.getItem(AUTOSAVE))); } catch (_) { return null; }
+  let previous = null;
+  try {
+    previous = normalize(JSON.parse(localStorage.getItem(AUTOSAVE)));
+    if (!previous || localStorage.getItem(OUTER_DEFAULT_MIGRATION) || previous.setup.coordinateReference !== 'centers') return previous;
+
+    // Keep measurements in Saved runs before replacing the old center-based default.
+    const runs = JSON.parse(localStorage.getItem(SAVED) || '{}');
+    if (!runs || typeof runs !== 'object' || Array.isArray(runs)) return previous;
+    runs['legacy-center-before-outer-v1'] = {
+      savedAt: new Date().toISOString(), label: `${previous.name} (previous center coordinates)`, data: previous
+    };
+    localStorage.setItem(SAVED, JSON.stringify(runs));
+    const next = fresh();
+    localStorage.setItem(AUTOSAVE, JSON.stringify(next));
+    localStorage.setItem(OUTER_DEFAULT_MIGRATION, '1');
+    legacyRunArchived = true;
+    return next;
+  } catch (_) { return previous; }
 }
 function normalize(raw) {
   if (!raw || ![1, 2].includes(raw.version) || !raw.setup || !Array.isArray(raw.positions)) return null;
@@ -61,7 +80,11 @@ function validSetup(s) {
   return ['c1', 'c2'].every(c => { const q = s[c]; return q && q.R > 0 && Number.isInteger(q.m) && q.m > 0 && Number.isInteger(q.n) && q.n > 0 && Number.isInteger(q.last) && q.last > 0 && q.last <= q.m && [1, -1].includes(q.dir) && q.R - (q.n - 1) * s.dw / 2 > 0 && Number.isFinite(q.windingWidth) && q.windingWidth > 0 && Number.isFinite(q.plateThickness) && q.plateThickness >= 0; });
 }
 function persist() {
-  try { localStorage.setItem(AUTOSAVE, JSON.stringify(state)); $('saveStatus').textContent = 'Saved locally'; }
+  try {
+    localStorage.setItem(AUTOSAVE, JSON.stringify(state));
+    localStorage.setItem(OUTER_DEFAULT_MIGRATION, '1');
+    $('saveStatus').textContent = 'Saved locally';
+  }
   catch (_) { $('saveStatus').textContent = 'Local save unavailable'; }
 }
 function changed({ rebuildReadings = false } = {}) {
@@ -301,7 +324,7 @@ function showRuns() {
   if (!Object.keys(runs).length) host.textContent = 'No saved runs yet.';
   for (const [key, item] of Object.entries(runs).sort((a, b) => b[1].savedAt.localeCompare(a[1].savedAt))) {
     const row = document.createElement('div'), label = document.createElement('span'), actions = document.createElement('span');
-    label.textContent = item.data.name; const date = document.createElement('small'); date.textContent = ` · ${new Date(item.savedAt).toLocaleString()}`; label.append(date);
+    label.textContent = item.label || item.data.name; const date = document.createElement('small'); date.textContent = ` · ${new Date(item.savedAt).toLocaleString()}`; label.append(date);
     const load = document.createElement('button'); load.textContent = 'Load'; load.onclick = () => { const clean = normalize(item.data); if (!clean) return; state = clean; currentRunKey = key; $('loadDialog').close(); syncSettingsControls(); changed({ rebuildReadings: true }); renderSetupFields(); };
     const remove = document.createElement('button'); remove.textContent = 'Delete'; remove.onclick = () => { delete runs[key]; localStorage.setItem(SAVED, JSON.stringify(runs)); showRuns(); };
     actions.append(load, remove); row.append(label, actions); host.append(row);
@@ -455,3 +478,7 @@ $('lmSection').addEventListener('toggle', () => { if ($('lmSection').open && der
 let resizeTimer;
 window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { renderCharts(); if (derived.lm) renderLm(); }, 100); });
 renderAll({ rebuildReadings: true });
+if (legacyRunArchived) {
+  $('saveStatus').textContent = 'Previous run archived';
+  $('saveStatus').title = 'Open Data tools, then Load run to restore the previous center-coordinate experiment.';
+}
