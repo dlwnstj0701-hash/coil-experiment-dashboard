@@ -10,15 +10,19 @@ const signed = (v, d = 3) => v == null || !Number.isFinite(v) ? '—' : `${v >= 
 const AUTOSAVE = 'coil-experiment-dashboard:autosave:v1';
 const SAVED = 'coil-experiment-dashboard:runs:v1';
 const OUTER_DEFAULT_MIGRATION = 'coil-experiment-dashboard:outer-default:v1';
-const DEFAULT_SETUP = { I: 1, dw: .5, d: 40, h1: 25, h2: 10, coordinateReference: 'outer',
+const COIL_DESIGN_MIGRATION = 'coil-experiment-dashboard:222-turn-default:v1';
+const PREVIOUS_DEFAULT_SETUP = { I: 1, dw: .5, d: 40, h1: 25, h2: 10, coordinateReference: 'outer',
   c1: { R: 46.25, m: 40, n: 5, last: 26, dir: 1, windingWidth: 20, plateThickness: 4 },
   c2: { R: 22.25, m: 11, n: 1, last: 11, dir: 1, windingWidth: 10, plateThickness: 4 } };
+const DEFAULT_SETUP = { I: 1, dw: .5, d: 40, h1: 25, h2: 10, coordinateReference: 'outer',
+  c1: { R: 45, m: 35, n: 7, last: 12, dir: 1, windingWidth: 20, plateThickness: 4 },
+  c2: { R: 22, m: 11, n: 1, last: 11, dir: 1, windingWidth: 10, plateThickness: 4 } };
 const DEFAULT_POSITIONS = [0, 4.5, 10, 17.5, 23, 31.2, 40];
 const fresh = () => ({ version: 2, name: 'New experiment', setup: structuredClone(DEFAULT_SETUP),
   positions: DEFAULT_POSITIONS.map(x => ({ x, readings: [] })), selectedX: 0,
   linearFitSettings: { weighted: true }, lmSettings: { keys: ['k', 'R1'], weighted: true, maxIterations: 80, active: false },
   ui: { showFit: true, showModel1: false, showLm: false, setupChanged: false, residualMode: 'target' } });
-let legacyRunArchived = false;
+let previousRunArchived = false;
 let state = loadAutosave() || fresh();
 let derived = null, currentRunKey = null, skipNextAutosave = false;
 
@@ -26,21 +30,31 @@ function loadAutosave() {
   let previous = null;
   try {
     previous = normalize(JSON.parse(localStorage.getItem(AUTOSAVE)));
-    if (!previous || localStorage.getItem(OUTER_DEFAULT_MIGRATION) || previous.setup.coordinateReference !== 'centers') return previous;
+    if (!previous) return null;
+    const legacyCenter = !localStorage.getItem(OUTER_DEFAULT_MIGRATION) && previous.setup.coordinateReference === 'centers';
+    const priorDesign = !localStorage.getItem(COIL_DESIGN_MIGRATION) && sameSetup(previous.setup, PREVIOUS_DEFAULT_SETUP);
+    if (!legacyCenter && !priorDesign) return previous;
 
-    // Keep measurements in Saved runs before replacing the old center-based default.
+    // Archive the earlier coordinate or coil design with its readings intact.
     const runs = JSON.parse(localStorage.getItem(SAVED) || '{}');
     if (!runs || typeof runs !== 'object' || Array.isArray(runs)) return previous;
-    runs['legacy-center-before-outer-v1'] = {
-      savedAt: new Date().toISOString(), label: `${previous.name} (previous center coordinates)`, data: previous
+    runs[legacyCenter ? 'legacy-center-before-outer-v1' : 'pre-222-default-v1'] = {
+      savedAt: new Date().toISOString(),
+      label: `${previous.name} (${legacyCenter ? 'previous center coordinates' : 'previous 186-turn design'})`, data: previous
     };
     localStorage.setItem(SAVED, JSON.stringify(runs));
     const next = fresh();
     localStorage.setItem(AUTOSAVE, JSON.stringify(next));
     localStorage.setItem(OUTER_DEFAULT_MIGRATION, '1');
-    legacyRunArchived = true;
+    localStorage.setItem(COIL_DESIGN_MIGRATION, '1');
+    previousRunArchived = true;
     return next;
   } catch (_) { return previous; }
+}
+function sameSetup(a, b) {
+  const common = ['I', 'dw', 'd', 'h1', 'h2', 'coordinateReference'];
+  const coil = ['R', 'm', 'n', 'last', 'dir', 'windingWidth', 'plateThickness'];
+  return common.every(key => a[key] === b[key]) && ['c1', 'c2'].every(c => coil.every(key => a[c][key] === b[c][key]));
 }
 function normalize(raw) {
   if (!raw || ![1, 2].includes(raw.version) || !raw.setup || !Array.isArray(raw.positions)) return null;
@@ -83,6 +97,7 @@ function persist() {
   try {
     localStorage.setItem(AUTOSAVE, JSON.stringify(state));
     localStorage.setItem(OUTER_DEFAULT_MIGRATION, '1');
+    localStorage.setItem(COIL_DESIGN_MIGRATION, '1');
     $('saveStatus').textContent = 'Saved locally';
   }
   catch (_) { $('saveStatus').textContent = 'Local save unavailable'; }
@@ -117,7 +132,7 @@ function renderHeader() {
   const complete = state.positions.filter(p => p.readings.length >= 3).length;
   const measured = state.positions.filter(p => p.readings.length).length;
   $('runName').value = state.name;
-  $('setupSummary').textContent = `I ${fmt(state.setup.I, 3)} A  ·  d ${fmt(state.setup.d, 1)} mm (${state.setup.coordinateReference === 'outer' ? '마주 보는 보빈 외측면 사이' : '코일 중심 간 · 기존 좌표'})  ·  R1 ${fmt(state.setup.c1.R, 2)} mm  ·  R2 ${fmt(state.setup.c2.R, 2)} mm  ·  Target ${fmt(state.setup.h1, 1)} → ${fmt(state.setup.h2, 1)} Oe  ·  측정 위치 ${measured}곳`;
+  $('setupSummary').textContent = `I ${fmt(state.setup.I, 3)} A  ·  d ${fmt(state.setup.d, 1)} mm (${state.setup.coordinateReference === 'outer' ? '마주 보는 D-plate 바깥면 사이' : '코일 중심 간 · 기존 좌표'})  ·  R1 ${fmt(state.setup.c1.R, 2)} mm / ${state.setup.c1.m * (state.setup.c1.n - 1) + state.setup.c1.last}턴  ·  R2 ${fmt(state.setup.c2.R, 2)} mm / ${state.setup.c2.m * (state.setup.c2.n - 1) + state.setup.c2.last}턴  ·  Target ${fmt(state.setup.h1, 1)} → ${fmt(state.setup.h2, 1)} Oe  ·  측정 위치 ${measured}곳`;
   const outer = state.setup.coordinateReference === 'outer';
   $('axisStart').textContent = `x = 0 · 코일 1 ${outer ? 'D-plate 바깥면' : '중심'}`;
   $('axisEnd').textContent = `x = ${fmt(state.setup.d, 1)} mm · 코일 2 ${outer ? 'D-plate 바깥면' : '중심'}`;
@@ -481,7 +496,7 @@ $('lmSection').addEventListener('toggle', () => { if ($('lmSection').open && der
 let resizeTimer;
 window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { renderCharts(); if (derived.lm) renderLm(); }, 100); });
 renderAll({ rebuildReadings: true });
-if (legacyRunArchived) {
+if (previousRunArchived) {
   $('saveStatus').textContent = 'Previous run archived';
-  $('saveStatus').title = 'Open Data tools, then Load run to restore the previous center-coordinate experiment.';
+  $('saveStatus').title = 'Open Data tools, then Load run to restore the previous experiment.';
 }

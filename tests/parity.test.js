@@ -44,6 +44,28 @@ test('outer-face coordinates keep the same coil physics while moving x = 0 and d
   for (const xmm of [0, 10, 20, 40]) near(lmWiderGap(xmm), widerGap.total(xmm / 1000));
 });
 
+test('222-turn workbook geometry reproduces its field, then includes D-plate faces', () => {
+  const design = { I: 1, dw: .5, d: 40, h1: 25, h2: 10, coordinateReference: 'outer',
+    c1: { R: 45, m: 35, n: 7, last: 12, dir: 1, windingWidth: 20, plateThickness: 0 },
+    c2: { R: 22, m: 11, n: 1, last: 11, dir: 1, windingWidth: 10, plateThickness: 0 } };
+  const workbook = evaluate(setupToState(design));
+  near(workbook.hAt0, 28.818658199532315);
+  near(workbook.total(.02), 18.88467682963973);
+  near(workbook.hAtD, 12.284504514791523);
+
+  const faces = setupToState({ ...design, c1: { ...design.c1, plateThickness: 4 }, c2: { ...design.c2, plateThickness: 4 } });
+  const actual = evaluate(faces);
+  near(faces.c1.xc, -.014);
+  near(faces.c2.xc, .049);
+  near(actual.N1, 222);
+  near(actual.N2, 11);
+  near(actual.wx[0], 0);
+  near(actual.wx.at(-1), .04);
+  near(actual.hAt0, 27.026307173630947);
+  near(actual.total(.02), 16.578278968251272);
+  near(actual.hAtD, 10.71205207484804);
+});
+
 const raw = [
   '14.0, 24.20, 24.26, 24.20', '17.2, 22.68, 22.63, 22.60',
   '20.4, 20.88, 20.88, 20.89', '23.6, 19.06, 18.96, 19.03',
