@@ -133,6 +133,9 @@ function renderHeader() {
   const measured = state.positions.filter(p => p.readings.length).length;
   $('runName').value = state.name;
   $('setupSummary').textContent = `I ${fmt(state.setup.I, 3)} A  ·  d ${fmt(state.setup.d, 1)} mm (${state.setup.coordinateReference === 'outer' ? '마주 보는 D-plate 바깥면 사이' : '코일 중심 간 · 기존 좌표'})  ·  R1 ${fmt(state.setup.c1.R, 2)} mm / ${state.setup.c1.m * (state.setup.c1.n - 1) + state.setup.c1.last}턴  ·  R2 ${fmt(state.setup.c2.R, 2)} mm / ${state.setup.c2.m * (state.setup.c2.n - 1) + state.setup.c2.last}턴  ·  Target ${fmt(state.setup.h1, 1)} → ${fmt(state.setup.h2, 1)} Oe  ·  측정 위치 ${measured}곳`;
+  const differsFromBaseline = !sameSetup(state.setup, DEFAULT_SETUP);
+  $('baselineNotice').hidden = !differsFromBaseline;
+  if (differsFromBaseline) $('baselineMessage').textContent = `현재 그래프: R1 ${fmt(state.setup.c1.R, 2)} mm / ${state.setup.c1.m * (state.setup.c1.n - 1) + state.setup.c1.last}턴, R2 ${fmt(state.setup.c2.R, 2)} mm / ${state.setup.c2.m * (state.setup.c2.n - 1) + state.setup.c2.last}턴 · 검증된 기본 설계: R45 / 222턴, R22 / 11턴`;
   const outer = state.setup.coordinateReference === 'outer';
   $('axisStart').textContent = `x = 0 · 코일 1 ${outer ? 'D-plate 바깥면' : '중심'}`;
   $('axisEnd').textContent = `x = ${fmt(state.setup.d, 1)} mm · 코일 2 ${outer ? 'D-plate 바깥면' : '중심'}`;
@@ -469,6 +472,16 @@ $('runLm').onclick = () => { state.lmSettings.active = true; changed(); };
 $('clearLm').onclick = () => { state.lmSettings.active = false; changed(); };
 $('saveRun').onclick = saveRun; $('loadRun').onclick = showRuns; $('closeLoad').onclick = () => $('loadDialog').close();
 $('newRun').onclick = () => { if (state.positions.some(p => p.readings.length) && !confirm('Start a new run? Unsaved readings will be replaced.')) return; state = fresh(); currentRunKey = null; syncSettingsControls(); changed({ rebuildReadings: true }); renderSetupFields(); };
+$('useBaseline').onclick = () => {
+  try {
+    const runs = JSON.parse(localStorage.getItem(SAVED) || '{}');
+    if (!runs || typeof runs !== 'object' || Array.isArray(runs)) throw new Error('Invalid saved runs');
+    runs[`before-222-baseline-${Date.now()}`] = { savedAt: new Date().toISOString(), label: `${state.name} (before 222-turn baseline)`, data: structuredClone(state) };
+    localStorage.setItem(SAVED, JSON.stringify(runs));
+  } catch (_) { $('saveStatus').textContent = 'Archive unavailable'; return; }
+  state = fresh(); currentRunKey = null; syncSettingsControls(); changed({ rebuildReadings: true }); renderSetupFields();
+  $('saveStatus').textContent = 'Previous run archived';
+};
 $('resetRun').onclick = () => { if (state.positions.some(p => p.readings.length) && !confirm('Reset the current run to defaults?')) return; const name = state.name; state = fresh(); state.name = name; syncSettingsControls(); changed({ rebuildReadings: true }); renderSetupFields(); };
 $('exportJson').onclick = () => download('coil-experiment-run.json', JSON.stringify(state, null, 2), 'application/json');
 $('exportCsv').onclick = exportCsv; $('copyTable').onclick = copyTable;

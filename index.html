@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Coil Measurement Lab</title>
   <link rel="stylesheet" href="./css/dashboard.css">
-  <link rel="stylesheet" href="./css/workflow.css?v=face-axis-40">
+  <link rel="stylesheet" href="./css/workflow.css?v=baseline-switch-222">
 </head>
 <body>
   <div class="shell">
@@ -16,6 +16,7 @@
 
     <main>
       <div id="setupChanged" class="notice" hidden><span>Experiment setup changed. Existing measurements will be re-evaluated against the updated model.</span><button type="button" id="applyModel">Apply updated model</button><button type="button" id="freshMeasurements">Start new measurement set</button></div>
+      <div id="baselineNotice" class="baseline-notice" hidden><span id="baselineMessage"></span><button type="button" id="useBaseline">222턴 기본 설계로 전환</button></div>
 
       <section class="analysis-block" aria-label="Field profile and decision panel">
         <div class="field-profile">
@@ -43,6 +44,6 @@
 
   <dialog id="setupDialog"><form method="dialog"><div class="dialog-head"><div><span class="eyebrow">EXPERIMENT SETUP</span><h2>Current theoretical input</h2></div><button class="close" value="cancel" aria-label="Close setup" title="Close">×</button></div><div id="setupFields" class="setup-fields"></div><div class="dialog-foot"><span id="setupError" role="alert"></span><button value="cancel">Close</button></div></form></dialog>
   <dialog id="loadDialog"><div class="dialog-head"><h2>Saved runs</h2><button class="close" id="closeLoad" type="button" aria-label="Close saved runs">×</button></div><div id="savedRuns"></div></dialog>
-  <script type="module" src="./js/app.js?v=222-turn-face-40"></script>
+  <script type="module" src="./js/app.js?v=baseline-switch-222"></script>
 </body>
 </html>

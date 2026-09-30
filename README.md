@@ -42,6 +42,7 @@ Runs saved with the earlier center-to-center coordinate convention keep that con
 On first open after this update, a legacy center-coordinate autosave is copied into **Data tools → Load run** before the dashboard starts a new 40 mm facing-face run. Its readings remain available in the archived run.
 
 The earlier 186-turn/46.25 mm default run is likewise archived once before the updated 222-turn/R45 default opens. Custom setups are left untouched.
+When a custom setup is active, the dashboard labels its current coil design above the graph and offers a switch to the verified 222-turn baseline. Switching first archives the current run, including any readings, in **Data tools → Load run**.
 
 ## Verification and limits
 

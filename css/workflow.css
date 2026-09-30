@@ -37,6 +37,9 @@ button.primary:hover { background: #1d4d67; }
 .lab-actions .save-status { margin-right: 8px; }
 main { display: block; padding: 16px 22px 40px; }
 .notice { margin-bottom: 12px; }
+.baseline-notice { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; padding: 8px 12px; border-left: 3px solid #285c78; background: #edf5f8; color: #264755; font-size: 11px; line-height: 1.45; }
+.baseline-notice span { flex: 1; min-width: 0; }
+.baseline-notice button { flex: none; border-color: #90b3c0; background: #fff; color: #285c78; }
 .eyebrow { color: var(--text-main); font-size: 11px; letter-spacing: 0; font-weight: 650; }
 .panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 15px 17px 5px; }
 .panel-heading h2 { color: var(--text-secondary); font-size: 14px; line-height: 1.25; margin: 4px 0 0; font-weight: 600; }
@@ -202,6 +205,7 @@ svg .zero-line { stroke: var(--axis); stroke-width: 1.5; stroke-dasharray: none;
   .reading-actions { grid-column: 1 / -1; display: flex; }
 }
 @media (max-width: 700px) {
+  .baseline-notice { flex-wrap: wrap; }
   .lab-header { padding: 10px 12px; flex-wrap: wrap; }
   .lab-identity { flex-basis: 100%; }
   .lab-identity h1 { font-size: 15px; }
