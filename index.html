@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Coil Measurement Lab</title>
   <link rel="stylesheet" href="./css/dashboard.css">
-  <link rel="stylesheet" href="./css/workflow.css">
+  <link rel="stylesheet" href="./css/workflow.css?v=face-axis-40">
 </head>
 <body>
   <div class="shell">
@@ -21,6 +21,7 @@
         <div class="field-profile">
           <div class="panel-heading"><div><span class="eyebrow">FIELD PROFILE</span><h2>Target · Model 2 · measurement</h2></div><details class="curve-menu"><summary>Curves</summary><div><label><input id="showFit" type="checkbox" checked> Weighted fit</label><label><input id="showModel1" type="checkbox"> Model 1</label><label><input id="showLm" type="checkbox"> LM fit</label><small id="fitAvailability">Fit needs 3 measured positions</small></div></details></div>
           <div class="chart-wrap"><svg id="mainChart" role="img" aria-label="Field profile showing target, theoretical model and measured points"></svg><div id="chartTooltip" class="chart-tooltip" hidden></div></div>
+          <div class="axis-reference"><span id="axisStart"></span><span id="axisEnd"></span></div>
           <div class="legend"><span><i class="swatch target"></i>Target</span><span><i class="swatch model"></i>Model 2</span><span><i class="swatch measurement"></i>Measurement ± SD</span><span id="fitLegend" hidden><i class="swatch fit"></i>Weighted fit</span><span id="model1Legend" hidden><i class="swatch model1"></i>Model 1</span><span id="lmLegend" hidden><i class="swatch lm"></i>LM fit</span></div>
         </div>
         <aside class="decision-panel" aria-label="Decision panel"><div class="panel-heading"><div><span class="eyebrow">DECISION PANEL</span><h2>Measured agreement</h2></div></div><p id="decisionStatus" class="decision-status">아직 측정값 없음</p><div id="decisionMetrics" class="decision-metrics"></div><div class="theory-reference"><span>Theory</span><strong id="theoryMetrics"></strong><small>이론 곡선의 최대 목표 편차 · 전체 목표 오차 · 최적 직선 대비 비선형성</small><span id="theoryMax" hidden></span></div><div id="decisionEndpoints" class="decision-endpoints"></div></aside>
@@ -42,6 +43,6 @@
 
   <dialog id="setupDialog"><form method="dialog"><div class="dialog-head"><div><span class="eyebrow">EXPERIMENT SETUP</span><h2>Current theoretical input</h2></div><button class="close" value="cancel" aria-label="Close setup" title="Close">×</button></div><div id="setupFields" class="setup-fields"></div><div class="dialog-foot"><span id="setupError" role="alert"></span><button value="cancel">Close</button></div></form></dialog>
   <dialog id="loadDialog"><div class="dialog-head"><h2>Saved runs</h2><button class="close" id="closeLoad" type="button" aria-label="Close saved runs">×</button></div><div id="savedRuns"></div></dialog>
-  <script type="module" src="./js/app.js?v=outer-default-40"></script>
+  <script type="module" src="./js/app.js?v=face-axis-40"></script>
 </body>
 </html>

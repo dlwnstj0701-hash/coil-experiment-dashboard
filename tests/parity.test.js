@@ -29,6 +29,10 @@ test('outer-face coordinates keep the same coil physics while moving x = 0 and d
   near(S.c1.xc, -.014);
   near(S.c2.xc, .049);
   near(S.c2EdgeOffset, .009);
+  near(E.wx[0], 0);
+  near(E.wx.at(-1), .04);
+  near(E.hAt0, 22.150055757137203);
+  near(E.hAtD, 9.535417880436961);
   near(E.total(0), legacy.total(.014));
   near(E.total(.04), legacy.total(.054));
   near(E.hAt0, E.total(0));

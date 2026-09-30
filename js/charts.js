@@ -5,7 +5,7 @@ const C = { target: color('target'), targetText: color('target-text'), model: co
 const f = n => Number(n).toFixed(2);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
-function base(svg, { width = 1000, height = 300, xMax, yMin, yMax, yTicks = 5, yTitle = 'Magnetic Field Strength (Oe)' }) {
+function base(svg, { width = 1000, height = 300, xMax, yMin, yMax, yTicks = 5, yTitle = 'Magnetic Field Strength (Oe)', xTitle = 'Distance (mm)' }) {
   const p = { l: 55, r: 22, t: 14, b: 34 }, iw = width - p.l - p.r, ih = height - p.t - p.b;
   const X = x => p.l + x / xMax * iw, Y = y => p.t + (yMax - y) / (yMax - yMin) * ih;
   let html = '';
@@ -17,7 +17,7 @@ function base(svg, { width = 1000, height = 300, xMax, yMin, yMax, yTicks = 5, y
     const x = xMax * i / 5, xx = X(x);
     html += `<line class="grid-line" x1="${xx}" y1="${p.t}" x2="${xx}" y2="${height - p.b}"/><line class="axis-tick" x1="${xx}" y1="${height - p.b}" x2="${xx}" y2="${height - p.b + 4}"/><text x="${xx}" y="${height - 12}" text-anchor="middle">${f(x)}</text>`;
   }
-  html += `<line class="axis-line" x1="${p.l}" y1="${p.t}" x2="${p.l}" y2="${height - p.b}"/><line class="axis-line" x1="${p.l}" y1="${height - p.b}" x2="${width - p.r}" y2="${height - p.b}"/><text class="axis-title" x="${width - p.r}" y="${height - 3}" text-anchor="end">Distance (mm)</text><text class="axis-title" x="13" y="${height / 2}" text-anchor="middle" transform="rotate(-90 13 ${height / 2})">${yTitle}</text>`;
+  html += `<line class="axis-line" x1="${p.l}" y1="${p.t}" x2="${p.l}" y2="${height - p.b}"/><line class="axis-line" x1="${p.l}" y1="${height - p.b}" x2="${width - p.r}" y2="${height - p.b}"/><text class="axis-title" x="${width - p.r}" y="${height - 3}" text-anchor="end">${xTitle}</text><text class="axis-title" x="13" y="${height / 2}" text-anchor="middle" transform="rotate(-90 13 ${height / 2})">${yTitle}</text>`;
   svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
   svg.innerHTML = html;
   return { X, Y, p, width, height };
@@ -58,7 +58,8 @@ export function drawMain(svg, { S, E, rows, fit, lm, selectedX, showFit, showMod
   if (fit && showFit) values.push(...fitRange.map(x => fit.a * x + fit.b));
   if (lm && showLm) for (let i = 0; i <= 100; i++) values.push(lm.fn(i * S.d * 1000 / 100));
   const [yMin, yMax] = extent(values);
-  const { X, Y } = base(svg, { width: Math.max(320, svg.clientWidth), height: Math.max(240, svg.clientHeight), xMax: S.d * 1000, yMin, yMax });
+  const { X, Y } = base(svg, { width: Math.max(320, svg.clientWidth), height: Math.max(240, svg.clientHeight), xMax: S.d * 1000, yMin, yMax,
+    xTitle: S.coordinateReference === 'outer' ? 'D-plate face gap x (mm)' : 'Coil-center distance x (mm)' });
   const xys = vals => E.wx.map((x, i) => ({ x: x * 1000, y: vals[i] }));
   addPath(svg, xys(E.wt), X, Y, C.target, 2.2, '7 5');
   if (showModel1) addPath(svg, xys(E.wthin), X, Y, C.model1, 1.6, '5 5');

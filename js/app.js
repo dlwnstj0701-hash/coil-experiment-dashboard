@@ -1,7 +1,7 @@
 import { evaluate, setupToState } from './physics.js';
 import { FITSPEC, measurementStats, measuredRows, weightedLinearFit, experimentalMetrics, lmFit } from './analysis.js';
 import { parseRaw, fileToPositions } from './import.js';
-import { drawMain, drawResidual, drawLmOverlay, drawLmResidual, exportSvgPng } from './charts.js';
+import { drawMain, drawResidual, drawLmOverlay, drawLmResidual, exportSvgPng } from './charts.js?v=face-axis-40';
 
 const $ = id => document.getElementById(id);
 const themeColor = name => getComputedStyle(document.documentElement).getPropertyValue(`--${name}`).trim();
@@ -118,6 +118,9 @@ function renderHeader() {
   const measured = state.positions.filter(p => p.readings.length).length;
   $('runName').value = state.name;
   $('setupSummary').textContent = `I ${fmt(state.setup.I, 3)} A  ·  d ${fmt(state.setup.d, 1)} mm (${state.setup.coordinateReference === 'outer' ? '마주 보는 보빈 외측면 사이' : '코일 중심 간 · 기존 좌표'})  ·  R1 ${fmt(state.setup.c1.R, 2)} mm  ·  R2 ${fmt(state.setup.c2.R, 2)} mm  ·  Target ${fmt(state.setup.h1, 1)} → ${fmt(state.setup.h2, 1)} Oe  ·  측정 위치 ${measured}곳`;
+  const outer = state.setup.coordinateReference === 'outer';
+  $('axisStart').textContent = `x = 0 · 코일 1 ${outer ? 'D-plate 바깥면' : '중심'}`;
+  $('axisEnd').textContent = `x = ${fmt(state.setup.d, 1)} mm · 코일 2 ${outer ? 'D-plate 바깥면' : '중심'}`;
   $('progressCount').textContent = `${complete} / ${state.positions.length} 측정 완료`;
   $('progressBar').style.width = `${100 * complete / Math.max(1, state.positions.length)}%`;
   $('setupChanged').hidden = !state.ui.setupChanged;

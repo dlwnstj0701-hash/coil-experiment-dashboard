@@ -44,6 +44,10 @@ main { display: block; padding: 16px 22px 40px; }
 .field-profile { min-width: 0; border-right: 1px solid #dfe4e2; }
 .chart-wrap { height: 350px; padding: 0 11px; position: relative; }
 .chart-wrap svg { width: 100%; height: 100%; }
+.axis-reference { display: flex; justify-content: space-between; gap: 16px; padding: 10px 33px 7px 66px; color: var(--text-secondary); font-size: 10px; font-weight: 600; line-height: 1.3; }
+.axis-reference span { min-width: 0; }
+.axis-reference span:last-child { text-align: right; }
+@media (max-width: 600px) { .axis-reference { gap: 10px; padding-left: 50px; padding-right: 22px; } }
 .chart-tooltip { max-width: 245px; background: var(--surface); border-color: #d1d5db; box-shadow: 0 6px 18px #11182712; }
 .chart-tooltip dt[data-series]::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; background: var(--series-color); }
 .chart-tooltip dt[data-series="target"] { --series-color: var(--target); }
